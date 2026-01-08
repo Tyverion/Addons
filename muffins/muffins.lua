@@ -43,10 +43,10 @@ windower.register_event('zone change', function(new,old)
 
     -- If we're not entering or leaving Sortie we want to establish our baseline zone basically this should always be kamihr.
     if new == baselineZone and not validZones:contains(old) then
-        packets.inject(packets.new('outgoing', 0x115))
         reportComplete = false
         baselineRequested = true
         exitRequested = false
+        packets.inject(packets.new('outgoing', 0x115))
     end
 
     -- Entering Sortie from a non-Sortie zone starts a new run.
@@ -57,9 +57,8 @@ windower.register_event('zone change', function(new,old)
     end
 
     -- This is used to determine when we leave Sortie.
-    if validZones:contains(old) and baselineZone == new then
+    if validZones:contains(old) and not validZones:contains(new) then
         exitRequested = true
-        print('exited sortie')
         packets.inject(packets.new('outgoing', 0x115))
     end
 
@@ -74,6 +73,7 @@ windower.register_event('incoming chunk', function(id, data)
         if baselineRequested and not exitRequested then
             initialGalli = p['Gallimaufry']
             log('%d':format(p['Gallimaufry']))
+            baselineRequested   = false
         -- We're checking if the current zone isn't a Sortie zone, if we leave Sortie by some means timeout, warp or whatever.
         elseif exitRequested then
             totalGalli = p['Gallimaufry']
@@ -90,7 +90,6 @@ windower.register_event('incoming chunk', function(id, data)
             -- We only reset the baselineRequested to false after we write the log.
             -- Reset exitRequested to false after written to log.
             exitRequested       = false
-            baselineRequested   = false
             reportComplete      = true
         end
     end
