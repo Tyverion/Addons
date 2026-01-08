@@ -7,3 +7,5 @@ rnpc     - This is a multibox tool that when loaded on all of your characters.
 muffins  - Tracks gained muffins for a sortie run.
 
 Debuffed - Added several debuff tracking. 
+
+Recast   - This is basically timers but draggable and if you are a multiboxer you can track your other char's cooldowns.
