@@ -19,7 +19,7 @@ Debuffed - Added several debuff tracking.
           You only get a list of active debuffs on the mob you're currently targeting unless you use the command 
 
                     //db watch "leech a"
-                    //db watch "ongo"
+                    //db watch "ongo" 
 
 Recast   - This is basically timers but draggable and if you are a multiboxer you can track your other char's cooldowns.
               [Recast] Commands:
