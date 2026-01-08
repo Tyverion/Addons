@@ -9,3 +9,15 @@ muffins  - Tracks gained muffins for a sortie run.
 Debuffed - Added several debuff tracking. 
 
 Recast   - This is basically timers but draggable and if you are a multiboxer you can track your other char's cooldowns.
+              [Recast] Commands:
+              //recast style up|down                 - stack direction
+              //recast sizeh small|mid|large         - bar height presets
+              //recast sizew <80-400>                - bar width
+              //recast stacked on|off                - share local/remote column
+              //recast watch add|remove <name>       - track another character
+              //recast watch list                    - list watched characters
+              //recast ja add|remove <name>          - track/untrack a JA group
+              //recast ja list                       - list tracked JA groups
+              //recast color list                    - show remote colors
+              //recast color <name|default> r g b    - set remote bar color
+              //recast profile blacklist|whitelist   - save per-job filter profile
