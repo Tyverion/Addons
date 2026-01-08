@@ -1,0 +1,70 @@
+<?xml version="1.1" ?>
+<settings>
+    <global>
+        <blacklist />
+        <box>
+            <bg>
+                <alpha>45</alpha>
+                <blue>0</blue>
+                <green>0</green>
+                <red>0</red>
+                <visible>true</visible>
+            </bg>
+            <flags>
+                <bold>false</bold>
+                <bottom>false</bottom>
+                <draggable>true</draggable>
+                <italic>false</italic>
+                <right>false</right>
+            </flags>
+            <padding>0</padding>
+            <pos>
+                <x>650</x>
+                <y>0</y>
+            </pos>
+            <text>
+                <alpha>255</alpha>
+                <blue>255</blue>
+                <font>Consolas</font>
+                <fonts>
+
+                </fonts>
+                <green>255</green>
+                <red>255</red>
+                <size>10</size>
+                <stroke>
+                    <alpha>180</alpha>
+                    <blue>0</blue>
+                    <green>0</green>
+                    <red>0</red>
+                    <width>2</width>
+                </stroke>
+            </text>
+        </box>
+        <colors>
+            <others>
+                <blue>0</blue>
+                <green>255</green>
+                <red>255</red>
+            </others>
+            <player>
+                <blue>255</blue>
+                <green>255</green>
+                <red>255</red>
+            </player>
+        </colors>
+        <hide_below_zero>false</hide_below_zero>
+        <interval>0.1</interval>
+        <mode>blacklist</mode>
+        <timers>true</timers>
+        <whitelist />
+    </global>
+    <yuzzie>
+        <box>
+            <pos>
+                <x>628</x>
+                <y>641</y>
+            </pos>
+        </box>
+    </yuzzie>
+</settings>
