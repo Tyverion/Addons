@@ -89,7 +89,6 @@ windower.register_event('incoming chunk', function(id, data)
                 log('Failed to open data/Totals.log for writing')
             end
             log('Wrote Muffins total to data/Totals.log')
-            -- We only reset the baselineRequested to false after we write the log.
             -- Reset exitRequested to false after written to log.
             exitRequested       = false
             reportComplete      = true
