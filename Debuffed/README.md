@@ -4,30 +4,30 @@ An addon that tracks and displays debuffs on your current target. Filters are av
 
 ### Commands
 
-`//debuffed mode`
+`//db mode`
 
 This will switch between blacklist and whitelist mode for debuff filtering.
 
-`//debuffed timers`
+`//db timers`
 
 This toggles the display of timers for debuffs.
 
-`//debuffed interval <value>`
+`//db interval <value>`
 
 This allows you to adjust the refresh interval for the textbox. It will be updated every \<value\> number of seconds.
 
-`//debuffed hide`
+`//db hide`
 
 This toggles the automatic removal of effects when their timer reaches zero.
 
-`//debuffed blacklist|whitelist add|remove <name>`
+`//db blacklist|whitelist add|remove <name>`
 
 This adds or removes the spell \<name\> to the specified filter.
 
 ### Abbreviations
 
 The following abbreviations are available for addon commands:
-* `debuffed` to `dbf`
+* `debuffed` to `db`
 * `mode` to `m`
 * `timers` to `t`
 * `interval` to `i`
