@@ -7,48 +7,55 @@ packets = require('packets')
 
 local zone           = 0
 local lastZone       = 0
-local baselineZone   = 267 -- Kamihr Drifts
-local validZones     = S{275, 133, 189} -- Three zones for Sortie
+local baselineZone   = 235 -- Kamihr Drifts
+local validZones     = S{275, 133, 189, 107} -- Three zones for Sortie
 local initialGalli   = 1
 local totalGalli     = 0
 local updated        = false
 local reportComplete = false
+local baselineRequested = false
+local exitRequested = false
+local newZone = 0
+local oldZone = 0
 
 local file_path = windower.addon_path .. 'data/'
 
 windower.register_event('load', function()
     -- Get the current zone on load
-    zone = windower.ffxi.get_info().zone
-    lastZone = zone
+    baselineZone = windower.ffxi.get_info().zone
 
     if not windower.dir_exists(file_path) then
         windower.create_dir(file_path)
     end
 
-    -- Capture baseline in Kamihr Drifts; fallback to Sortie if we load mid-run.
-    if zone == baselineZone or validZones:contains(zone) then
-        packets.inject(packets.new('outgoing', 0x115))
-        updated  = false
-        reportComplete = false
-    end
+    -- Capture baseline on load.
+    packets.inject(packets.new('outgoing', 0x115))
+    reportComplete = false
+    baselineRequested = true
+    exitRequested = false
 
 end)
 
-windower.register_event('zone change', function()
+windower.register_event('zone change', function(new,old)
     -- Whenever we change zone we want to know if it isn't Sortie so we can later calculate the difference.
-    local oldZone = zone
-    zone = windower.ffxi.get_info().zone
-    lastZone = oldZone
-
+    newZone = new
+    oldZone = old
     -- Entering Kamihr Drifts from a non-Sortie zone establishes the baseline.
-    if zone == baselineZone and not validZones:contains(oldZone) then
-        updated = false
+    if not validZones:contains(new) then
         reportComplete = false
+        exitRequested = false
         packets.inject(packets.new('outgoing', 0x115))
     end
 
+    -- Entering Sortie from a non-Sortie zone starts a new run.
+    if validZones:contains(new) and baselineZone == old then
+        print('entered sortie')
+    end
+
     -- This is used to determine when we leave Sortie.
-    if validZones:contains(oldZone) and not validZones:contains(zone) and updated and not reportComplete then
+    if validZones:contains(old) and baselineZone == new then
+        exitRequested = true
+        print('exited sortie')
         packets.inject(packets.new('outgoing', 0x115))
     end
 
@@ -60,21 +67,16 @@ windower.register_event('incoming chunk', function(id, data)
     if id == 0x118 then
         local p = packets.parse('incoming', data)
 
-        -- Baseline is captured in Kamihr Drifts when coming from a non-Sortie zone.
-        if zone == baselineZone and not updated and not validZones:contains(lastZone) then
+        -- Baseline is captured after a baseline request.
+        if baselineRequested and not exitRequested then
             initialGalli = p['Gallimaufry']
             log('%d':format(p['Gallimaufry']))
-            updated = true
-        -- Fallback for loading mid-Sortie.
-        elseif validZones:contains(zone) and not updated then
-            initialGalli = p['Gallimaufry']
-            log('%d':format(p['Gallimaufry']))
-            updated = true
+            baselineRequested = false
         -- We're checking if the current zone isn't a Sortie zone, if we leave Sortie by some means timeout, warp or whatever.
-        elseif not validZones:contains(zone) and validZones:contains(lastZone) and updated then
+        elseif exitRequested and not validZones:contains(newZone) then
             totalGalli = p['Gallimaufry']
             log('You have gained %d Muffins!':format(totalGalli - initialGalli))
-            reportComplete = true
+            exitRequested = false
 
             local export = io.open(file_path .. 'Totals' .. '.log', 'a')
             if export then
