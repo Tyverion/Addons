@@ -17,6 +17,7 @@ Debuffed - Added several debuff tracking.
 
 Recast   - This is basically timers but draggable and if you are a multiboxer you can track your other char's cooldowns.
 		  [Recast] Commands:
+		  
 		  //recast style up|down                 - stack direction
 		  //recast sizeh small|mid|large         - bar height presets
 		  //recast sizew <80-400>                - bar width
