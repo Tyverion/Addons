@@ -10,7 +10,11 @@ Debuffed - Added several debuff tracking.
 
           Debuffed will track multiple targets and identify them as "Vampire Leech A" "Vampire Leech B" etc. Up to 15.
 
-          By default I have the setting "trusted" enabled. This will enable a party chat when a debuff drops from the above mob identifier. 
+          By default I have the setting "trusted" enabled. 
+          
+          This will enable a party chat when a debuff drops from the above mob identifier and 
+          
+          remove that debuff from anyone else that has this version of debuffed loaded.
 
           You only get a list of active debuffs on the mob you're currently targeting unless you use the command 
 
