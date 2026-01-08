@@ -50,15 +50,17 @@ windower.register_event('zone change', function(new,old)
     end
 
     -- Entering Sortie from a non-Sortie zone starts a new run.
-    if validZones:contains(new) and old ~= oldZone then
+    if validZones:contains(new) and not validZones:contains(baselineZone) then
         reportComplete = false
         exitRequested = false
+        log('Entered Sortie')
         packets.inject(packets.new('outgoing', 0x115))
     end
 
     -- This is used to determine when we leave Sortie.
     if validZones:contains(old) and not validZones:contains(new) then
         exitRequested = true
+        log('Exited Sortie')
         packets.inject(packets.new('outgoing', 0x115))
     end
 
