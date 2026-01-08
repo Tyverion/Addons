@@ -1,6 +1,6 @@
 _addon.name = "FastCS"
-_addon.author = "Cairthenn"
-_addon.version = "1.3"
+_addon.author = "Cairthenn; Modified by Ender"
+_addon.version = "1.4"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
