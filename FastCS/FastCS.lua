@@ -71,10 +71,6 @@ windower.register_event('incoming chunk',function(id,o,m,is_inj)
     if id == 0x00A then
         disable()
     end
-    if id == 0x3A then
-        local p = packets.parse('incoming', data)
-        print(p['Animation ID'])
-    end
     
 end)
 
