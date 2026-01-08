@@ -12,6 +12,7 @@ Debuffed - Added several debuff tracking.
           This will enable a party chat when a debuff drops from the above mob identifier and 
           remove that debuff from anyone else that has this version of debuffed loaded.
           You only get a list of active debuffs on the mob you're currently targeting unless you use the command 
+		  
          	//db watch "leech a"
           	//db watch "ongo" 
 
