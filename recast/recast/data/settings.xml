@@ -1,0 +1,25 @@
+<?xml version="1.1" ?>
+<settings>
+    <global>
+        <BAR_HEIGHT>12</BAR_HEIGHT>
+        <BAR_WIDTH>150</BAR_WIDTH>
+        <JAs>Widened compass,Ecliptic attrition,Marcato,Blood pact: rage,Nightingale,Clarion call,Stratagems,Blaze of glory,Bolster,Dematerialize,Sp ability ii,Entrust,Troubadour,Soul voice,Sp ability</JAs>
+        <characters_to_watch></characters_to_watch>
+        <hide_below_zero>false</hide_below_zero>
+        <interval>0.1</interval>
+        <recast_mode>down</recast_mode>
+        <recast_x>789</recast_x>
+        <recast_y>499</recast_y>
+        <remote_bound>false</remote_bound>
+        <remote_colors>
+            <Default>
+                <b>255</b>
+                <g>120</g>
+                <r>190</r>
+            </Default>
+        </remote_colors>
+        <remote_offsetX>180</remote_offsetX>
+        <remote_x>29</remote_x>
+        <remote_y>342</remote_y>
+    </global>
+</settings>

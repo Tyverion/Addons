@@ -1,0 +1,35 @@
+<?xml version="1.1" ?>
+<settings>
+    <global>
+        <BAR_HEIGHT>12</BAR_HEIGHT>
+        <BAR_WIDTH>150</BAR_WIDTH>
+        <JAs>Clarion call,Widened compass,Marcato,Sic/ready,Blood pact: rage,Nightingale,Sp ability,Stratagems,Blaze of glory,Bolster,Entrust,Sp ability ii,Dematerialize,Troubadour,Soul voice,Ecliptic attrition</JAs>
+        <characters_to_watch>Kyohyi,Yuzzie,Yolizero,Reizero</characters_to_watch>
+        <hide_below_zero>false</hide_below_zero>
+        <interval>0.1</interval>
+        <recast_mode>down</recast_mode>
+        <recast_x>788</recast_x>
+        <recast_y>499</recast_y>
+        <remote_bound>false</remote_bound>
+        <remote_colors>
+            <Default>
+                <b>255</b>
+                <g>120</g>
+                <r>190</r>
+            </Default>
+            <Kyohyi>
+                <b>180</b>
+                <g>255</g>
+                <r>120</r>
+            </Kyohyi>
+            <Yuzzie>
+                <b>255</b>
+                <g>220</g>
+                <r>120</r>
+            </Yuzzie>
+        </remote_colors>
+        <remote_offsetX>180</remote_offsetX>
+        <remote_x>7</remote_x>
+        <remote_y>314</remote_y>
+    </global>
+</settings>
