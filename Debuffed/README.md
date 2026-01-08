@@ -27,7 +27,7 @@ This adds or removes the spell \<name\> to the specified filter.
 ### Abbreviations
 
 The following abbreviations are available for addon commands:
-* `debuffed` to `db`
+* `db`
 * `mode` to `m`
 * `timers` to `t`
 * `interval` to `i`
