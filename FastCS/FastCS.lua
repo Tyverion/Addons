@@ -1,6 +1,6 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.4"
+_addon.version = "1.5"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
@@ -11,6 +11,7 @@ packets = require('packets')
 -- States
 local target
 local player
+
 
 -- Settings:
 
@@ -39,7 +40,7 @@ helptext = [[FastCS - Command List:
  
 local function disable()
 
-    windower.send_command("config FrameRateDivisor ".. (settings.frame_rate_divisor or 2))
+    windower.send_command("config FrameRateDivisor ".. (settings.frame_rate_divisor or 1))
     
 end
 
@@ -75,9 +76,9 @@ windower.register_event('incoming chunk',function(id,o,m,is_inj)
 end)
 
 windower.register_event('load',function()
-    local player = windower.ffxi.get_player()
+    local player = windower.ffxi.get_player().status
     
-    if player and player.status == 4 then
+    if player and player == 4 then
         windower.send_command("config FrameRateDivisor 0")
     else
         disable()
@@ -86,18 +87,13 @@ windower.register_event('load',function()
 end)
 
 windower.register_event("status change", function(new,old)
+    local player = windower.ffxi.get_player().status
     if player then
         if old == 4 then
             disable()
         end
     end
 end)
-
-function status_change()
-    target = windower.ffxi.get_mob_by_target('t')
-    player = windower.ffxi.get_player()
-end
-status_change:loop(1)
 
 windower.register_event("addon command", function (command,...)
     command = command and command:lower() or "help"
