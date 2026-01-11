@@ -32,6 +32,7 @@ Recast   - This is basically timers but draggable and if you are a multiboxer yo
 		  //recast profile blacklist|whitelist   - save per-job filter profile
 
 CVM     - //cvm run <= 6 yalms from curior moogle.
+
 		- Below is a sort of default buy list.
 
 		return {
