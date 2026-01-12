@@ -1,6 +1,6 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.5"
+_addon.version = "1.6"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
@@ -11,13 +11,17 @@ packets = require('packets')
 -- States
 local target
 local player
-
+local info
 
 -- Settings:
 
 defaults = {}
 defaults.frame_rate_divisor = 2
-defaults.exclusions = S{"home point #1", "home point #2", "home point #3", "home point #4", "home point #5", "igsli", "urbiolaine", "teldro-kesdrodo", "nunaarl bthtrogg", "survival guide", "waypoint"}
+defaults.exclusions = S{
+    "home point #1", "home point #2", "home point #3", "home point #4", "home point #5", 
+    "igsli", "urbiolaine", "teldro-kesdrodo", "nunaarl bthtrogg", "survival guide", "waypoint",
+    "curio vendor moogle"
+}
 settings = config.load(defaults)
 
 -- Globals:
@@ -56,7 +60,7 @@ windower.register_event('logout',disable)
 windower.register_event('outgoing chunk',function(id)
 
     if id == 0x5B then
-        if not target or target and not settings.exclusions:contains(target.name:lower()) then
+        if not target or target and not settings.exclusions:contains(target.name:lower()) and not info.menu_open then
             enable()
         end
     end
@@ -86,14 +90,16 @@ windower.register_event('load',function()
     
 end)
 
-windower.register_event("status change", function(new,old)
+--windower.register_event("status change", function(new,old)
+function status_change()
     local player = windower.ffxi.get_player().status
-    if player then
-        if old == 4 then
-            disable()
-        end
+    info = windower.ffxi.get_info()
+    if player == 0 then
+        disable()
     end
-end)
+end
+status_change:loop(.1)
+--end)
 
 windower.register_event("addon command", function (command,...)
     command = command and command:lower() or "help"
