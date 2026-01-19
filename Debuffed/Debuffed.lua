@@ -1,12 +1,13 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '1.8.2026'
+_addon.version = '1.19.2026'
 _addon.commands = {'db'}
 
 config = require('config')
 packets = require('packets')
 res = require('resources')
 texts = require('texts')
+bit = require('bit')
 
 require('luau')
 require('logger')
@@ -73,6 +74,7 @@ label_for_id = {}
 id_for_label = {}
 id_for_label_lower = {}
 debuffed_mobs = {}
+mob_hp = {}
 party = T{}
 trusted = true
 next_letter = {}
@@ -90,6 +92,7 @@ function reset_labels()
     id_for_label_lower = {}
     next_letter = {}
     debuffed_mobs = {}
+    mob_hp = {}
     watch = nil
     pending_expiries = {}
     expiry_flush = false
@@ -274,7 +277,12 @@ function update_box()
         end
     end
 
-    lines:append((label or target.name or 'Unknown') .. '\n')
+    local hp = mob_hp[target.id]
+    local display = label or target.name or 'Unknown'
+    if hp ~= nil then
+        display = ('%s (%d%%)'):format(display, hp)
+    end
+    lines:append(display .. '\n')
     append_section('Abilities', abilities)
     append_section('Spells',    spells)
 
@@ -428,6 +436,7 @@ function inc_action_message(arr)
     -- Mob died
     if S{6,20,71,72,113,406,605,646}:contains(arr.message_id) then
         debuffed_mobs[arr.target_id] = nil
+        mob_hp[arr.target_id] = nil
         local lbl = label_for_id[arr.target_id]
         local key = nil
         if lbl then
@@ -498,6 +507,16 @@ windower.register_event('incoming chunk', function(id, data)
         arr.message_id = data:unpack('H',0x19)%32768
 
         inc_action_message(arr)
+
+    elseif id == 0x00E then
+        local p = packets.parse('incoming', data)
+        local tid = p.NPC or p['NPC']
+        local hp = p['HP %']
+        local mask = p.Mask or p['Mask'] or 0
+        local has_hp = bit.band(mask, 0x04) ~= 0
+        if tid and hp ~= nil and debuffed_mobs[tid] and has_hp then
+            mob_hp[tid] = hp
+        end
 
     elseif id == 0x17 then
         local p = packets.parse('incoming', data)
