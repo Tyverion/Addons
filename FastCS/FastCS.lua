@@ -1,6 +1,6 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.6"
+_addon.version = "1.7"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
@@ -17,21 +17,60 @@ local info
 
 defaults = {}
 defaults.frame_rate_divisor = 2
-defaults.exclusions = S{
-    "home point #1", "home point #2", "home point #3", "home point #4", "home point #5", 
-    "igsli", "urbiolaine", "teldro-kesdrodo", "nunaarl bthtrogg", "survival guide", "waypoint",
-    "curio vendor moogle"
-}
+
 settings = config.load(defaults)
 
--- Globals:
-__Globals = {
+-- FPS State
+local FPS_STATE = {
     enabled = false, -- Boolean that indicates whether the Config speed-up is currently enabled
     zoning  = false, -- Boolean that indicates whether the player is zoning with the config speed-up enabled
 }
 
--- Help text definition:
+local function disable()
+    windower.send_command("config FrameRateDivisor ".. (settings.frame_rate_divisor or 1))
+    FPS_STATE.enabled = false
+end
 
+local function enable()
+    windower.send_command("config FrameRateDivisor 0")
+    FPS_STATE.enabled = true
+end
+
+windower.register_event('outgoing chunk',function(id)
+    if id == 0x5B then
+        enable()
+    end
+    if id == 0x00D then -- Last packet sent when zoning out
+        disable()
+    end
+end)
+
+windower.register_event('incoming chunk',function(id,o,m,is_inj)
+    if id == 0x00A then
+        disable()
+    end
+end)
+
+windower.register_event('load',function()
+    if player and player.status == 4 then
+        windower.send_command("config FrameRateDivisor 0")
+    else
+        disable()
+    end
+end)
+
+function status_change()
+    player = windower.ffxi.get_player()
+    info = windower.ffxi.get_info()
+    if player.status == 4 and not info.menu_open and not FPS_STATE.enabled then
+        enable()
+    elseif player.status ~= 4 and FPS_STATE.enabled then
+        disable()
+    end
+end
+status_change:loop(.1)
+
+-- Help text definition:
 helptext = [[FastCS - Command List:
 1. help - Displays this help menu.
 2a. fps [30|60|uncapped]
@@ -42,65 +81,6 @@ helptext = [[FastCS - Command List:
     - Adds or removes a target from the exclusions list. Case insensitive.
  ]]
  
-local function disable()
-
-    windower.send_command("config FrameRateDivisor ".. (settings.frame_rate_divisor or 1))
-    
-end
-
-local function enable()
-      
-    windower.send_command("config FrameRateDivisor 0")
-
-end
-
-windower.register_event('unload',disable)
-windower.register_event('logout',disable)
-
-windower.register_event('outgoing chunk',function(id)
-
-    if id == 0x5B then
-        if not target or target and not settings.exclusions:contains(target.name:lower()) and not info.menu_open then
-            enable()
-        end
-    end
-
-    if id == 0x00D then -- Last packet sent when zoning out
-        disable()
-    end
-    
-end)
-
-windower.register_event('incoming chunk',function(id,o,m,is_inj)
-
-    if id == 0x00A then
-        disable()
-    end
-    
-end)
-
-windower.register_event('load',function()
-    local player = windower.ffxi.get_player().status
-    
-    if player and player == 4 then
-        windower.send_command("config FrameRateDivisor 0")
-    else
-        disable()
-    end
-    
-end)
-
---windower.register_event("status change", function(new,old)
-function status_change()
-    local player = windower.ffxi.get_player().status
-    info = windower.ffxi.get_info()
-    if player == 0 then
-        disable()
-    end
-end
-status_change:loop(.1)
---end)
-
 windower.register_event("addon command", function (command,...)
     command = command and command:lower() or "help"
     local args = T{...}:map(string.lower)
@@ -144,3 +124,6 @@ windower.register_event("addon command", function (command,...)
         error("The command syntax was invalid.")
     end
 end)
+
+windower.register_event('unload',disable)
+windower.register_event('logout',disable)
