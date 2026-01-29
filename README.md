@@ -56,3 +56,10 @@ CVM     - //cvm run <= 6 yalms from curior moogle.
 	        ['Grape Daifuku']  = { qty = 12, slot = 67, opt = 4 },
 	    }
 	}
+Trade	- //trade bulk/give [char name] [value] [item]
+		- //trade add/remove (while targeting someone will add/remove them to/from the whitelist) 
+		- Must have the character added on both character's whitelist for auto trading to happen
+		The max items is limited to 792/8 stacks of 99
+
+		- i.e. //trade give randomplayer 1 grape daifuku
+		- i.e. //trade bulk randomplayer dynamis (this will trade all items in the specified list)
