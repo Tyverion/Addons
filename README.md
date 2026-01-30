@@ -58,7 +58,7 @@ CVM     - //cvm run <= 6 yalms from curior moogle.
 	}
 Trade	- Command based trading for whitelist players.
 
-		//trade bulk/give [char name] [value] [item]
+		//trade bulk/give [char name] [qty] [item]
 		//trade add/remove (while targeting someone will add/remove them to/from the whitelist)
 		Must have the character added on both character's whitelist for auto trading to happen
 		The max items is limited to 792/8 stacks of 99
