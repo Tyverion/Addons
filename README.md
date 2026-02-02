@@ -65,3 +65,8 @@ Trade	- Command based trading for whitelist players.
 
 		- i.e. //trade give randomplayer 1 grape daifuku
 		- i.e. //trade bulk randomplayer dynamis (this will trade all items in the specified list)
+
+Rooted   - Replaces anchor
+
+		Anchor does not address mob weaponskills. Rooted address weapopnskills and abilities. 
+		This is to avoid mechanics such as Grim Halo from fomor type mobs.
