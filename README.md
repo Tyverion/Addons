@@ -6,6 +6,8 @@ rnpc     - This is a multibox tool that when loaded on all of your characters.
       
 muffins  - Tracks gained muffins for a sortie run.
 
+Segs     - Tracks gained segments for a ody run.
+
 Debuffed - Added several debuff tracking.
           Debuffed will track multiple targets and identify them as "Vampire Leech A" "Vampire Leech B" etc. Up to 15.
           By default I have the setting "trusted" enabled. 
