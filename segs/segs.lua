@@ -1,6 +1,6 @@
 _addon.name = '[Segs]'
 _addon.author = 'Ender'
-_addon.version = '1.8.2026'
+_addon.version = '2.3.2026'
 
 require('luau')
 packets = require('packets')
