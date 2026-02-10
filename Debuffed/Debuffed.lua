@@ -120,18 +120,20 @@ local function prepare_names()
 
     for index, name in pairs(mobs) do
         if #name > 1 then
-            if duplicates[name] then
-                duplicates[name]:append(index)
+            local list = duplicates[name]
+            if list then
+                list[#list + 1] = index
             else
-                duplicates[name] = L{index}
+                duplicates[name] = { index }
             end
         end
     end
 
     for name, indexes in pairs(duplicates) do
-        if name ~= 'n' and indexes.n > 1 then
+        if name ~= 'n' and #indexes > 1 then
+            table.sort(indexes)
             local counter = 1
-            for index in indexes:it() do
+            for _, index in ipairs(indexes) do
                 zonecache[index] = name:sub(1, 20) .. letter_suffix(counter)
                 counter = counter + 1
             end
