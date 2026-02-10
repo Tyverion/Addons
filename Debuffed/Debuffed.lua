@@ -1,6 +1,6 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '1.19.2026'
+_addon.version = '3.09.2026'
 _addon.commands = {'db'}
 
 config = require('config')
@@ -17,6 +17,7 @@ defaults = {
     mode = 'blacklist',
     timers = true,
     hide_below_zero = false,
+    rename_duplicates = true,
     whitelist = S{},
     blacklist = S{},
     colors = {
@@ -86,6 +87,76 @@ sending_queue = false
 local NAME_W  = 13   -- width of the name column
 local TIMER_W = 3    -- width of the timer column
 
+-- duplicate name renames (tellapart-style)
+local renames = {}
+local zonecache = {}
+local active_renames = false
+local Cities = S{ 70, 247, 256, 249, 244, 234, 245, 257, 246, 248, 230, 53, 236, 233, 223, 238, 235, 226, 239, 240, 232, 250, 231, 284, 242, 26, 252, 280, 285, 225, 224, 237, 50, 241, 243, 71 }
+
+local function letter_suffix(num)
+    local s = ''
+    while num >= 1 do
+        local m = (num - 1) % 26 + string.byte('A')
+        s = string.char(m) .. s
+        num = math.floor((num - 1) / 26)
+    end
+    return ' ' .. s
+end
+
+local function prepare_names()
+    if not settings.rename_duplicates then
+        active_renames = false
+        return
+    end
+
+    if Cities[windower.ffxi.get_info().zone] then
+        active_renames = false
+        return
+    end
+
+    zonecache = {}
+    local mobs = windower.ffxi.get_mob_list()
+    local duplicates = {}
+
+    for index, name in pairs(mobs) do
+        if #name > 1 then
+            if duplicates[name] then
+                duplicates[name]:append(index)
+            else
+                duplicates[name] = L{index}
+            end
+        end
+    end
+
+    for name, indexes in pairs(duplicates) do
+        if name ~= 'n' and indexes.n > 1 then
+            local counter = 1
+            for index in indexes:it() do
+                zonecache[index] = name:sub(1, 20) .. letter_suffix(counter)
+                counter = counter + 1
+            end
+        end
+    end
+
+    renames = {}
+    for idx in pairs(zonecache) do
+        local t = windower.ffxi.get_mob_by_index(idx)
+        if t and (t.spawn_type == 0x010) then
+            renames[t.id] = zonecache[idx]
+            zonecache[idx] = nil
+        end
+    end
+
+    active_renames = true
+
+    -- sync debuffed labels to renamed display names
+    for id, label in pairs(renames) do
+        label_for_id[id] = label
+        id_for_label[label] = id
+        id_for_label_lower[label:lower()] = id
+    end
+end
+
 function reset_labels()
     label_for_id = {}
     id_for_label = {}
@@ -98,6 +169,9 @@ function reset_labels()
     expiry_flush = false
     pending_queue = {}
     sending_queue = false
+    renames = {}
+    zonecache = {}
+    active_renames = false
 end
 
 local function slug(name)
@@ -106,6 +180,13 @@ end
 
 local function assign_label(id, name)
     if not id or not name then return nil end
+    if renames[id] then
+        local label = renames[id]
+        label_for_id[id] = label
+        id_for_label[label] = id
+        id_for_label_lower[label:lower()] = id
+        return label
+    end
     if label_for_id[id] then
         return label_for_id[id]
     end
@@ -480,6 +561,7 @@ windower.register_event('login','load', function()
             party[v.mob.name] = v.mob.id
         end
     end
+    prepare_names()
 end)
 
 windower.register_event('logout','zone change', function()
@@ -517,7 +599,16 @@ windower.register_event('incoming chunk', function(id, data)
         if tid and hp ~= nil and debuffed_mobs[tid] and has_hp then
             mob_hp[tid] = hp
         end
-
+        local idx = data:unpack('H', 0x009)
+        if zonecache[idx] then
+            local t = windower.ffxi.get_mob_by_index(idx)
+            if t then
+                if t.spawn_type == 0x010 then
+                    renames[t.id] = zonecache[idx]
+                end
+                zonecache[idx] = nil
+            end
+        end
     elseif id == 0x17 then
         local p = packets.parse('incoming', data)
         if p.Mode == 4 then
@@ -560,6 +651,9 @@ end)
 windower.register_event('outgoing chunk', function(id, data)
     if id == 0x05C then
         reset_labels()
+        prepare_names()
+    elseif id == 0x00C then
+        prepare_names()
     end
 end)
 
@@ -574,6 +668,12 @@ windower.register_event('prerender', function()
     if curr > frame_time + settings.interval then
         frame_time = curr
         update_box()
+    end
+
+    if active_renames then
+        for i, v in pairs(renames) do
+            windower.set_mob_name(i, v)
+        end
     end
 end)
 
@@ -610,6 +710,12 @@ windower.register_event('addon command', function(...)
     elseif args[1] == 't' or args[1] == 'timers' then
         settings.timers = not settings.timers
         log('Timer display %s.':format(settings.timers and 'enabled' or 'disabled'))
+        settings:save()
+
+    elseif args[1] == 'rename' then
+        settings.rename_duplicates = not settings.rename_duplicates
+        prepare_names()
+        log('Rename duplicates %s.':format(settings.rename_duplicates and 'enabled' or 'disabled'))
         settings:save()
 
     elseif args[1] == 'i' or args[1] == 'interval' then
