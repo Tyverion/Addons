@@ -1,6 +1,6 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '3.09.2026'
+_addon.version = '3.12.2026'
 _addon.commands = {'db'}
 
 config = require('config')
@@ -296,6 +296,22 @@ local function enqueue_party_message(msg)
     end
 end
 
+local function refresh_party()
+    local p = windower.ffxi.get_party()
+    if not p then return end
+    party = T{}
+    for _, v in pairs(p) do
+        if type(v) == 'table' and v.mob then
+            party[v.mob.name] = v.mob.id
+        end
+    end
+    local me = windower.ffxi.get_player()
+    if me and me.id then
+        player_id = me.id
+        party[me.name] = me.id
+    end
+end
+
 function update_box()
     local lines  = L{}
     local target
@@ -459,6 +475,9 @@ local HELIX_IDS = S{278,279,280,281,282,283,284,285, 885,886,887,888,889,891,892
 function inc_action(act)
     local party_by_id = {}
     for _, id in pairs(party) do party_by_id[id] = true end
+    if player_id ~= 0 then
+        party_by_id[player_id] = true
+    end
     if not party_by_id[act.actor_id] then return end
 
     local spell = act.param
@@ -557,12 +576,8 @@ function inc_action_message(arr)
 end
 
 windower.register_event('login','load', function()
-    player_id = (windower.ffxi.get_player() or {}).id
-    for i,v in pairs(windower.ffxi.get_party()) do
-        if type(v) == 'table' and v.mob then
-            party[v.mob.name] = v.mob.id
-        end
-    end
+    print('load')
+    refresh_party()
     prepare_names()
 end)
 
@@ -666,6 +681,9 @@ windower.register_event('incoming chunk', function(id, data)
 end)
 
 windower.register_event('prerender', function()
+    if (player_id == 0 or next(party) == nil) then
+        refresh_party()
+    end
     local curr = os.clock()
     if curr > frame_time + settings.interval then
         frame_time = curr
