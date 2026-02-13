@@ -18,6 +18,8 @@ defaults = {
     timers = true,
     hide_below_zero = false,
     rename_duplicates = true,
+    show_target_box = true,
+    show_watch_box = true,
     whitelist = S{},
     blacklist = S{},
     colors = {
@@ -397,21 +399,33 @@ local function build_box(target, box_ref, header_color, label_prefix)
 end
 
 function update_box()
-    local target = windower.ffxi.get_mob_by_target('t')
-    build_box(target, box, TARGET_HDR, 'TARGET')
-
-    local watch_target
-    if watch then
-        watch_target = windower.ffxi.get_mob_by_id(watch)
-        if not (watch_target and watch_target.valid_target) then
-            watch = nil
-            watch_target = nil
-        end
+    if settings.show_target_box then
+        local target = windower.ffxi.get_mob_by_target('t')
+        build_box(target, box, TARGET_HDR, 'TARGET')
+        box:show()
+    else
+        box.current_string = ''
+        box:hide()
     end
-    if watch_target then
-        build_box(watch_target, box_watch, WATCH_HDR, 'WATCH')
+
+    if settings.show_watch_box then
+        local watch_target
+        if watch then
+            watch_target = windower.ffxi.get_mob_by_id(watch)
+            if not (watch_target and watch_target.valid_target) then
+                watch = nil
+                watch_target = nil
+            end
+        end
+        if watch_target then
+            build_box(watch_target, box_watch, WATCH_HDR, 'WATCH')
+        else
+            box_watch.current_string = ''
+        end
+        box_watch:show()
     else
         box_watch.current_string = ''
+        box_watch:hide()
     end
 end
 
@@ -757,6 +771,24 @@ windower.register_event('addon command', function(...)
     elseif args[1] == 't' or args[1] == 'timers' then
         settings.timers = not settings.timers
         log('Timer display %s.':format(settings.timers and 'enabled' or 'disabled'))
+        settings:save()
+
+    elseif args[1] == 'targetbox' then
+        if args[2] == 'on' or args[2] == 'off' then
+            settings.show_target_box = (args[2] == 'on')
+        else
+            settings.show_target_box = not settings.show_target_box
+        end
+        log('Target box %s.':format(settings.show_target_box and 'enabled' or 'disabled'))
+        settings:save()
+
+    elseif args[1] == 'watchbox' then
+        if args[2] == 'on' or args[2] == 'off' then
+            settings.show_watch_box = (args[2] == 'on')
+        else
+            settings.show_watch_box = not settings.show_watch_box
+        end
+        log('Watch box %s.':format(settings.show_watch_box and 'enabled' or 'disabled'))
         settings:save()
 
     elseif args[1] == 'rename' then
