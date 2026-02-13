@@ -1,6 +1,6 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '3.12.2026'
+_addon.version = '3.13.2026'
 _addon.commands = {'db'}
 
 config = require('config')
@@ -38,16 +38,34 @@ defaults = {
         pos = { x = 650, y = 0 },
         flags = { draggable = true },
     },
+    watch_box = {
+        bg = {
+            visible = true,
+            alpha = 45,
+            red = 0, green = 0, blue = 0,
+        },
+        text = {
+            size = 10,
+            font = 'Consolas',
+            stroke = { width = 2, alpha = 180, red = 0, green = 0, blue = 0 },
+        },
+        pos = { x = 650, y = 120 },
+        flags = { draggable = true },
+    },
 }
 
 settings = config.load(defaults)
 
 box = texts.new('${current_string}', settings.box, settings)
+box_watch = texts.new('${current_string}', settings.watch_box, settings)
 box:show()
+box_watch:show()
 
 local INDENT = '  '
 local function rgb_triplet(c) return ('%d,%d,%d'):format(c[1], c[2], c[3]) end
 local HEADER = rgb_triplet{255,184,77}   -- amber header
+local TARGET_HDR = rgb_triplet{120,200,255}
+local WATCH_HDR  = rgb_triplet{255,140,160}
 
 list_commands = T{
     w = 'whitelist',
@@ -312,27 +330,17 @@ local function refresh_party()
     end
 end
 
-function update_box()
+local function build_box(target, box_ref, header_color, label_prefix)
     local lines  = L{}
-    local target
-    if watch then
-        target = windower.ffxi.get_mob_by_id(watch)
-        if not (target and target.valid_target) then
-            watch = nil
-            target = nil
-        end
-    end
-    if not target then target = windower.ffxi.get_mob_by_target('t') end
     if not target or not target.valid_target or (target.claim_id == 0 and target.spawn_type ~= 16) then
-        box.current_string = ''
+        box_ref.current_string = ''
         return
     end
 
     local data = debuffed_mobs[target.id]
-
     if not data then
-        box.current_string = ''
-        return       
+        box_ref.current_string = ''
+        return
     end
 
     local abilities, spells = {}, {}
@@ -381,11 +389,30 @@ function update_box()
     if hp ~= nil then
         display = ('%s (%d%%)'):format(display, hp)
     end
-    lines:append(display .. '\n')
+    lines:append(('\\cs(%s)%s\\cr %s\n'):format(header_color, label_prefix, display))
     append_section('Abilities', abilities)
     append_section('Spells',    spells)
 
-    box.current_string = (lines:length() == 0) and '' or lines:concat('')
+    box_ref.current_string = (lines:length() == 0) and '' or lines:concat('')
+end
+
+function update_box()
+    local target = windower.ffxi.get_mob_by_target('t')
+    build_box(target, box, TARGET_HDR, 'TARGET')
+
+    local watch_target
+    if watch then
+        watch_target = windower.ffxi.get_mob_by_id(watch)
+        if not (watch_target and watch_target.valid_target) then
+            watch = nil
+            watch_target = nil
+        end
+    end
+    if watch_target then
+        build_box(watch_target, box_watch, WATCH_HDR, 'WATCH')
+    else
+        box_watch.current_string = ''
+    end
 end
 
 function get_color(actor)
