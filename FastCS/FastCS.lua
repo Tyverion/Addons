@@ -1,22 +1,20 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.7"
+_addon.version = "1.6"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
 
 require("luau")
-packets = require('packets')
 
 -- States
-local target
 local player
 local info
 
 -- Settings:
 
 defaults = {}
-defaults.frame_rate_divisor = 2
+defaults.frame_rate_divisor = 1
 
 settings = config.load(defaults)
 
@@ -28,17 +26,17 @@ local FPS_STATE = {
 
 local function disable()
     windower.send_command("config FrameRateDivisor ".. (settings.frame_rate_divisor or 1))
-    FPS_STATE.enabled = false
 end
 
 local function enable()
     windower.send_command("config FrameRateDivisor 0")
-    FPS_STATE.enabled = true
 end
 
 windower.register_event('outgoing chunk',function(id)
     if id == 0x5B then
-        enable()
+        if not info.menu_open then
+            enable()
+        end
     end
     if id == 0x00D then -- Last packet sent when zoning out
         disable()
@@ -64,8 +62,10 @@ function status_change()
     info = windower.ffxi.get_info()
     if player.status == 4 and not info.menu_open and not FPS_STATE.enabled then
         enable()
-    elseif player.status ~= 4 and FPS_STATE.enabled then
+        FPS_STATE.enabled = true
+    elseif player.status ~= 4 or info.menu_open and FPS_STATE.enabled then
         disable()
+        FPS_STATE.enabled = false
     end
 end
 status_change:loop(.1)
