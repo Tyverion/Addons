@@ -1,4 +1,4 @@
-_addon.name = 'muffins'
+_addon.name = 'Muffins'
 _addon.author = 'Ender'
 _addon.version = '1.8.2026'
 
