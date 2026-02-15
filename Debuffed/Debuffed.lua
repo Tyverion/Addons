@@ -1,6 +1,6 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '3.13.2026'
+_addon.version = '2.13.2026'
 _addon.commands = {'db'}
 
 config = require('config')
