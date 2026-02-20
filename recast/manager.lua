@@ -35,6 +35,7 @@ local CHARGE_LABELS = {
 
 -- Track SCH charge state locally
 local strat_state = { max_charges = 0, charges = nil, last_seconds = nil }
+local last_resync = 0
 
 ----------------------------------------------------------------
 -- Category Helpers
@@ -112,6 +113,17 @@ local function get_recast_group_label(recast_id)
     end
 
     return nil
+end
+
+local function should_skip_recast_id(recast_id, abil_recasts)
+    -- Rune Enchantment (92) duplicates rune recast group (10)
+    if recast_id == 92 then
+        local r = abil_recasts or windower.ffxi.get_ability_recasts() or {}
+        if r[10] then
+            return true
+        end
+    end
+    return false
 end
 
 
@@ -511,8 +523,6 @@ function manager:set_remote_cooldown(owner, abil, kind, rem, total, group_id)
     data.bar:set(rem, data.total)
 end
 
-
-
 ----------------------------------------------------------------
 -- Initialize bars for existing recasts on load
 ----------------------------------------------------------------
@@ -536,23 +546,66 @@ function manager:initialize_bars()
     -- Job abilities: abil_recasts keyed by recast_id
     for recast_id, seconds in pairs(abil_recasts) do
         if seconds > 0 then
-            if recast_id == STRATAGEM_RECAST_ID then
-                -- Stratagems: grouped bar, charge logic handled in update()
-                local label = CHARGE_LABELS[recast_id] or 'Stratagems'
-                if not profile.hide_ja[label] then
-                    local key   = ('JA:%d'):format(recast_id)
-                    local total = seconds
-                    create_bar(label, key, 'ja', nil, recast_id, total)
+            if not should_skip_recast_id(recast_id, abil_recasts) then
+                if recast_id == STRATAGEM_RECAST_ID then
+                    -- Stratagems: grouped bar, charge logic handled in update()
+                    local label = CHARGE_LABELS[recast_id] or 'Stratagems'
+                    if not profile.hide_ja[label] then
+                        local key   = ('JA:%d'):format(recast_id)
+                        local total = seconds
+                        create_bar(label, key, 'ja', nil, recast_id, total)
+                    end
+
+                else
+                    -- Everything else: one bar per recast_id, name from ability_recasts or first JA
+                    local label = get_recast_group_label(recast_id)
+
+                    if label and not profile.hide_ja[label] then
+                        local key   = ('JA:%d'):format(recast_id)
+                        local total = seconds
+                        create_bar(label, key, 'ja', nil, recast_id, total)
+                    end
                 end
+            end
+        end
+    end
+end
 
-            else
-                -- Everything else: one bar per recast_id, name from ability_recasts or first JA
-                local label = get_recast_group_label(recast_id)
+----------------------------------------------------------------
+-- Periodic resync: rebuild any missing bars (handles lost action packets)
+----------------------------------------------------------------
+function manager:resync_missing()
+    local spell_recasts = windower.ffxi.get_spell_recasts()  or {}
+    local abil_recasts  = windower.ffxi.get_ability_recasts() or {}
 
-                if label and not profile.hide_ja[label] then
-                    local key   = ('JA:%d'):format(recast_id)
-                    local total = seconds
-                    create_bar(label, key, 'ja', nil, recast_id, total)
+    -- Spells: use recast_id from resources
+    for spell_id, sp in pairs(res.spells) do
+        if sp.recast_id and sp.en and not profile.hide_spells[sp.en] then
+            local seconds = spell_recasts[sp.recast_id]
+            if seconds and seconds > 0 then
+                local key = ('SP:%d'):format(spell_id)
+                if not self.bars[key] then
+                    create_bar(sp.en, key, 'spell', spell_id, sp.recast_id, seconds)
+                end
+            end
+        end
+    end
+
+    -- Job abilities: abil_recasts keyed by recast_id
+    for recast_id, seconds in pairs(abil_recasts) do
+        if seconds > 0 then
+            if not should_skip_recast_id(recast_id, abil_recasts) then
+                local key = ('JA:%d'):format(recast_id)
+                if not self.bars[key] then
+                    if recast_id == STRATAGEM_RECAST_ID then
+                        local label = CHARGE_LABELS[recast_id] or 'Stratagems'
+                        create_bar(label, key, 'ja', nil, recast_id, seconds)
+                    else
+                        local label = get_recast_group_label(recast_id)
+                        if label then
+                            create_bar(label, key, 'ja', nil, recast_id, seconds)
+                        end
+                    end
                 end
             end
         end
@@ -565,6 +618,7 @@ end
 function manager:update()
     local abil_recasts  = windower.ffxi.get_ability_recasts()  or {}
     local spell_recasts = windower.ffxi.get_spell_recasts()    or {}
+    local now = os.clock()
 
     for key, data in pairs(self.bars) do
         -- remote cooldowns are driven externally
@@ -616,6 +670,12 @@ function manager:update()
             end
         end
     end
+
+    local interval = self.resync_interval or 0
+    if interval > 0 and (now - last_resync) >= interval then
+        last_resync = now
+        self:resync_missing()
+    end
 end
 
 ----------------------------------------------------------------
@@ -635,7 +695,6 @@ windower.register_event('action', function(act)
         local spell = res.spells[param]
         if spell and spell.recast_id and spell.en then
             local key = ('SP:%d'):format(spell.id)
-            coroutine.sleep(.1)
             create_bar(spell.en, key, 'spell', spell.id, spell.recast_id, 0)
         end
     end
@@ -645,11 +704,11 @@ windower.register_event('action', function(act)
         local abil = res.job_abilities[param]
         if abil and abil.recast_id and abil.en then
             local recast_id = abil.recast_id
-            local key       = ('JA:%d'):format(recast_id)
-            local label     = get_recast_group_label(recast_id) or abil.en
-
-            coroutine.sleep(.1)
-            create_bar(label, key, 'ja', nil, recast_id, 0)
+            if not should_skip_recast_id(recast_id) then
+                local key       = ('JA:%d'):format(recast_id)
+                local label     = get_recast_group_label(recast_id) or abil.en
+                create_bar(label, key, 'ja', nil, recast_id, 0)
+            end
         end
     end
 
