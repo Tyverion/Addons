@@ -1,10 +1,10 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.6"
+_addon.version = "1.7"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
-
+packets = require('packets')
 require("luau")
 
 -- States
