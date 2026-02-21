@@ -1,6 +1,6 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.6"
+_addon.version = "1.7"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
@@ -23,49 +23,59 @@ local FPS_STATE = {
     enabled = false, -- Boolean that indicates whether the Config speed-up is currently enabled
     zoning  = false, -- Boolean that indicates whether the player is zoning with the config speed-up enabled
 }
+local post_zone_boost_until = nil
 
 local function disable()
     windower.send_command("config FrameRateDivisor ".. (settings.frame_rate_divisor or 1))
+    FPS_STATE.enabled = false
 end
 
 local function enable()
     windower.send_command("config FrameRateDivisor 0")
+    FPS_STATE.enabled = true
 end
 
 windower.register_event('outgoing chunk',function(id)
     if id == 0x5B then
-        if not info.menu_open then
+        if info and not info.menu_open and not FPS_STATE.zoning then
             enable()
         end
     end
     if id == 0x00D then -- Last packet sent when zoning out
         disable()
+        FPS_STATE.zoning = true
     end
 end)
 
 windower.register_event('incoming chunk',function(id,o,m,is_inj)
     if id == 0x00A then
-        disable()
+        FPS_STATE.zoning = false
+        post_zone_boost_until = os.clock() + 1.5
+        enable()
     end
 end)
 
 windower.register_event('load',function()
-    if player and player.status == 4 then
-        windower.send_command("config FrameRateDivisor 0")
-    else
-        disable()
-    end
+    disable()
 end)
 
 function status_change()
     player = windower.ffxi.get_player()
     info = windower.ffxi.get_info()
-    if player.status == 4 and not info.menu_open and not FPS_STATE.enabled then
-        enable()
-        FPS_STATE.enabled = true
-    elseif player.status ~= 4 or info.menu_open and FPS_STATE.enabled then
+    if not player or not info then
+        return
+    end
+    if FPS_STATE.zoning and FPS_STATE.enabled then
         disable()
-        FPS_STATE.enabled = false
+        return
+    end
+    if post_zone_boost_until and os.clock() >= post_zone_boost_until then
+        disable()
+        post_zone_boost_until = nil
+        return
+    end
+    if info.menu_open and FPS_STATE.enabled then
+        disable()
     end
 end
 status_change:loop(.1)
