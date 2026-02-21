@@ -35,7 +35,7 @@ local function enable()
     FPS_STATE.enabled = true
 end
 
-windower.register_event('outgoing chunk',function(id)
+windower.register_event('outgoing chunk',function(id, data)
     if id == 0x5B then
         local p = packets.parse('outgoing', data)
         if info and not info.menu_open and not FPS_STATE.zoning and p._unknown1 ~= 16384 then
