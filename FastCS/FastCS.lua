@@ -37,7 +37,7 @@ end
 
 windower.register_event('outgoing chunk',function(id)
     if id == 0x5B then
-        local p = packets.parse('incoming', data)
+        local p = packets.parse('outgoing', data)
         if info and not info.menu_open and not FPS_STATE.zoning and p._unknown1 ~= 16384 then
             enable()
         else
