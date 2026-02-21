@@ -116,22 +116,6 @@ windower.register_event("addon command", function (command,...)
             error("The command syntax was invalid.")
         end
         settings:save()
-    elseif command == "exclusion" then
-        if #args == 2 then
-            if args[1] == "add" then
-                settings.exclusions:add(args[2]:lower())
-                notice(args[2] .. " added to the exclusions list.")
-            elseif args[1] == "remove" then
-                settings.exclusions:remove(args[2]:lower())
-                notice(args[2] .. " removed from the exclusions list.")
-            else
-                error("The command syntax was invalid.")
-            end
-        else
-            error("The command syntax was invalid.")
-        end
-    else
-        error("The command syntax was invalid.")
     end
 end)
 
