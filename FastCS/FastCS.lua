@@ -1,6 +1,6 @@
 _addon.name = "FastCS"
 _addon.author = "Cairthenn; Modified by Ender"
-_addon.version = "1.7"
+_addon.version = "1.8"
 _addon.commands = {"FastCS","FCS"}
 
 --Requires:
@@ -35,7 +35,7 @@ local function enable()
     FPS_STATE.enabled = true
 end
 
-windower.register_event('outgoing chunk',function(id, data)
+windower.register_event('outgoing chunk',function(id,data)
     if id == 0x5B then
         local p = packets.parse('outgoing', data)
         if info and not info.menu_open and not FPS_STATE.zoning and p._unknown1 ~= 16384 then
@@ -43,6 +43,9 @@ windower.register_event('outgoing chunk',function(id, data)
         else
             return
         end
+    end
+    if id == 0x5C then
+        post_zone_boost_until = os.clock() + 1.5
     end
     if id == 0x00D then -- Last packet sent when zoning out
         disable()
