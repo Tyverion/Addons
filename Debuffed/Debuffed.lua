@@ -1,6 +1,6 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '2.13.2026'
+_addon.version = '3.04.2026'
 _addon.commands = {'db'}
 
 config = require('config')
@@ -508,10 +508,12 @@ local function clear_effect(tid, eff)
     if debuffed_mobs[tid] then debuffed_mobs[tid][eff] = nil end
 end
 
-local DIA_EFF, BIO_EFF, HELIX_EFF = 134, 135, 186
+local DIA_EFF, BIO_EFF, HELIX_EFF, KAST_EFF = 134, 135, 186, 23
 local DIA_IDS   = S{23,24,25,33,34}
 local BIO_IDS   = S{230,231,232}
-local HELIX_IDS = S{278,279,280,281,282,283,284,285, 885,886,887,888,889,891,892}
+local HELIX1_IDS = S{278,279,280,281,282,283,284,285}
+local HELIX2_IDS = S{885,886,887,888,889,891,892}
+local HELIX_IDS = HELIX1_IDS + HELIX2_IDS
 
 function inc_action(act)
     local party_by_id = {}
@@ -540,7 +542,17 @@ function inc_action(act)
                 elseif BIO_IDS:contains(spell) then
                     clear_effect(target, DIA_EFF); apply_spell_debuff(target, BIO_EFF, spell, actor)
                 elseif HELIX_IDS:contains(spell) then
-                    clear_effect(target, HELIX_EFF); apply_spell_debuff(target, HELIX_EFF, spell, actor)
+                    local existing = debuffed_mobs[target] and debuffed_mobs[target][HELIX_EFF]
+                    local old_id = existing and existing.id
+                    -- Helix I cannot overwrite Helix II
+                    if old_id and HELIX2_IDS:contains(old_id) and HELIX1_IDS:contains(spell) then
+                        -- keep existing Helix II
+                    else
+                        clear_effect(target, HELIX_EFF)
+                        apply_spell_debuff(target, HELIX_EFF, spell, actor)
+                    end
+                elseif spell == 502 then
+                    clear_effect(target, KAST_EFF); apply_spell_debuff(target, KAST_EFF, spell, actor)
                 end
             end
         end
@@ -617,7 +629,6 @@ function inc_action_message(arr)
 end
 
 windower.register_event('login','load', function()
-    print('load')
     refresh_party()
     prepare_names()
 end)
@@ -741,7 +752,7 @@ end)
 windower.register_event('addon command', function(...)
     local args = L{...}
 
-    if args[1] == 'm' or args[1] == 'mode' then
+    if args[1] == 'mode' then
         if settings.mode == 'blacklist' then
             settings.mode = 'whitelist'
         else
@@ -750,7 +761,8 @@ windower.register_event('addon command', function(...)
         log('Changed to %s mode.':format(settings.mode))
         settings:save()
 
-    elseif args[1] == 'w' or args[1] == 'watch' then
+    elseif args[1] == 'watch' then
+        
         local label = table.concat(args, ' ', 2)
 
         if label == '' or label == 'clear' then
@@ -768,7 +780,27 @@ windower.register_event('addon command', function(...)
             end
         end
 
-    elseif args[1] == 't' or args[1] == 'timers' then
+    elseif args[1] == 'watchonly' then
+        settings.show_target_box = not settings.show_target_box
+
+        local label = table.concat(args, ' ', 2)
+
+        if label == '' or label == 'clear' then
+            watch = nil
+            log('Cleared watch target.')
+        else
+            local target_id, resolved_label = resolve_watch_label(label)
+            if target_id then
+                watch = target_id
+                log(('Watching debuffs on: %s (id %d)'):format(resolved_label or label, target_id))
+            elseif resolved_label == 'ambiguous' then
+                log(('Ambiguous label: %s (add letter suffix)'):format(label))
+            else
+                log(('No known label: %s'):format(label))
+            end
+        end
+
+    elseif args[1] == 'timers' then
         settings.timers = not settings.timers
         log('Timer display %s.':format(settings.timers and 'enabled' or 'disabled'))
         settings:save()
@@ -797,12 +829,12 @@ windower.register_event('addon command', function(...)
         log('Rename duplicates %s.':format(settings.rename_duplicates and 'enabled' or 'disabled'))
         settings:save()
 
-    elseif args[1] == 'i' or args[1] == 'interval' then
+    elseif args[1] == 'interval' then
         settings.interval = tonumber(args[2]) or .1
         log('Refresh interval set to %s seconds.':format(settings.interval))
         settings:save()
 
-    elseif args[1] == 'h' or args[1] == 'hide' then
+    elseif args[1] == 'hide' then
         settings.hide_below_zero = not settings.hide_below_zero
         log('Timers that reach 0 will be %s.':format(settings.hide_below_zero and 'hidden' or 'shown'))
         settings:save()
