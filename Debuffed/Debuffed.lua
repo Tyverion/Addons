@@ -1,6 +1,6 @@
 _addon.name = 'Debuffed'
 _addon.author = 'Xathe (Asura); Modified by Cypan (Bahamut); Modified by Ender'
-_addon.version = '3.04.2026'
+_addon.version = '3.24.2026'
 _addon.commands = {'db'}
 
 config = require('config')
@@ -96,6 +96,7 @@ id_for_label = {}
 id_for_label_lower = {}
 debuffed_mobs = {}
 mob_hp = {}
+mob_action = {}
 party = T{}
 trusted = true
 next_letter = {}
@@ -111,7 +112,13 @@ local TIMER_W = 3    -- width of the timer column
 local renames = {}
 local zonecache = {}
 local active_renames = false
-local Cities = S{ 70, 247, 256, 249, 244, 234, 245, 257, 246, 248, 230, 53, 236, 233, 223, 238, 235, 226, 239, 240, 232, 250, 231, 284, 242, 26, 252, 280, 285, 225, 224, 237, 50, 241, 243, 71 }
+local Cities = S{ 
+    70, 247, 256, 249, 244, 234, 245, 257, 
+    246, 248, 230, 53, 236, 233, 223, 238, 
+    235, 226, 239, 240, 232, 250, 231, 284, 
+    242, 26, 252, 280, 285, 225, 224, 237, 50, 
+    241, 243, 71 
+}
 
 local function letter_suffix(num)
     local s = ''
@@ -186,6 +193,7 @@ function reset_labels()
     next_letter = {}
     debuffed_mobs = {}
     mob_hp = {}
+    mob_action = {}
     watch = nil
     pending_expiries = {}
     expiry_flush = false
@@ -339,8 +347,13 @@ local function build_box(target, box_ref, header_color, label_prefix)
         return
     end
 
-    local data = debuffed_mobs[target.id]
-    if not data then
+    local data = debuffed_mobs[target.id] or {}
+    local action = mob_action[target.id]
+    if action and action.expires and action.expires <= os.clock() then
+        mob_action[target.id] = nil
+        action = nil
+    end
+    if not data and not action then
         box_ref.current_string = ''
         return
     end
@@ -392,6 +405,9 @@ local function build_box(target, box_ref, header_color, label_prefix)
         display = ('%s (%d%%)'):format(display, hp)
     end
     lines:append(('\\cs(%s)%s\\cr %s\n'):format(header_color, label_prefix, display))
+    if action and action.name then
+        lines:append(('%s\\cs(%s)Action\\cr %s\n'):format(INDENT, HEADER, action.name))
+    end
     append_section('Abilities', abilities)
     append_section('Spells',    spells)
 
@@ -498,7 +514,6 @@ function apply_spell_debuff(target, effect_id, spell_id, actor)
     }
 end
 
--- nil-safe helpers
 local function has_effect(tid, eff)
     local t = debuffed_mobs[tid]
     return t and t[eff] ~= nil
@@ -509,6 +524,23 @@ local function clear_effect(tid, eff)
 end
 
 local DIA_EFF, BIO_EFF, HELIX_EFF, KAST_EFF = 134, 135, 186, 23
+local ACTION_DISPLAY_SECONDS = 10
+local ACTION_WEAKNESSES = {
+    Aita = {
+        ['Eroding Flesh']   = 'Wind',
+        ['Flaming Kick']    = 'Water',
+        ['Flashflood']      = 'Thunder',
+        ['Fulminous Smash'] = 'Earth',
+        ['Icy Grasp']       = 'Fire',
+    },
+    Degei = {
+        ['Eroding Flesh']   = 'Wind',
+        ['Flaming Kick']    = 'Water',
+        ['Flashflood']      = 'Thunder',
+        ['Fulminous Smash'] = 'Earth',
+        ['Icy Grasp']       = 'Fire',
+    },
+}
 local DIA_IDS   = S{23,24,25,33,34}
 local BIO_IDS   = S{230,231,232}
 local HELIX1_IDS = S{278,279,280,281,282,283,284,285}
@@ -521,10 +553,33 @@ function inc_action(act)
     if player_id ~= 0 then
         party_by_id[player_id] = true
     end
-    if not party_by_id[act.actor_id] then return end
 
     local spell = act.param
     local actor = act.actor_id
+    local actor_mob = windower.ffxi.get_mob_by_id(actor)
+    if actor_mob and actor_mob.spawn_type == 16 then
+        local action_name
+        if act.category == 8 then
+            local sp = res.spells[spell]
+            action_name = sp and (sp.name or sp.en)
+        elseif S{3,7,11}:contains(act.category) and spell and spell > 255 then
+            local ma = res.monster_abilities[spell]
+            action_name = ma and (ma.name or ma.en)
+        end
+        if action_name then
+            local weakness = ACTION_WEAKNESSES[actor_mob.name] and ACTION_WEAKNESSES[actor_mob.name][action_name]
+            if weakness then
+                action_name = ('%s (%s)'):format(action_name, weakness)
+            end
+            mob_action[actor] = {
+                name = action_name,
+                expires = os.clock() + ACTION_DISPLAY_SECONDS,
+            }
+            assign_label(actor, actor_mob.name)
+        end
+    end
+
+    if not party_by_id[act.actor_id] then return end
 
     -- Spells
     if act.category == 4 then
@@ -536,7 +591,9 @@ function inc_action(act)
             if target and not party_by_id[target] and target ~= player_id then
                 if effect_id and S{82,203,205,230,236,237,266,267,268,269,270,271,272,277,278,279,280,283,425,581,656,659}:contains(msg) then
                     local sp = res.spells[spell]
-                    if sp and sp.status == effect_id then apply_spell_debuff(target, effect_id, spell, actor) end
+                    if sp and sp.status == effect_id then 
+                        apply_spell_debuff(target, effect_id, spell, actor) 
+                    end
                 elseif DIA_IDS:contains(spell) then
                     clear_effect(target, BIO_EFF); apply_spell_debuff(target, DIA_EFF, spell, actor)
                 elseif BIO_IDS:contains(spell) then
@@ -592,6 +649,7 @@ function inc_action_message(arr)
     if S{6,20,71,72,113,406,605,646}:contains(arr.message_id) then
         debuffed_mobs[arr.target_id] = nil
         mob_hp[arr.target_id] = nil
+        mob_action[arr.target_id] = nil
         local lbl = label_for_id[arr.target_id]
         local key = nil
         if lbl then
