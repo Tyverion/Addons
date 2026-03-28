@@ -238,7 +238,7 @@ local function build_grouped_order()
         if ra == rb then
             return (da and da.name or '') < (db and db.name or '')
         end
-        return ra > rb
+        return ra < rb
     end)
 
     local ordered = {}
