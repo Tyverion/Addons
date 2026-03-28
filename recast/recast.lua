@@ -26,6 +26,7 @@ local defaults = {
     buff_x         = nil,
     buff_y         = nil,
     show_buffs     = true,
+    Buffs          = S{},
     interval            = 0.1,
     hide_below_zero     = false,
     characters_to_watch = S{},
@@ -106,9 +107,31 @@ local function normalize_ja_set(tbl)
     return S(names)
 end
 
+local function normalize_buff_set(tbl)
+    if type(tbl) ~= 'table' then return S{} end
+
+    local names = {}
+    for k, v in pairs(tbl) do
+        local name
+        if type(k) == 'number' or (type(k) == 'string' and k:match('^%d+$')) then
+            name = v
+        else
+            name = k
+        end
+        if v and type(name) == 'string' then
+            name = name:match('^%s*(.-)%s*$')
+            if name and name ~= '' then
+                names[#names + 1] = name:lower()
+            end
+        end
+    end
+    return S(names)
+end
+
 local function normalize_settings()
     settings.characters_to_watch = normalize_watch_list(settings.characters_to_watch)
     settings.JAs                 = normalize_ja_set(settings.JAs)
+    settings.Buffs               = normalize_buff_set(settings.Buffs)
 end
 
 normalize_settings()
@@ -135,6 +158,7 @@ recast_manager.buff_y         = settings.buff_y
 recast_manager.show_buffs     = settings.show_buffs
 recast_manager.resync_interval = settings.interval
 recast_manager:set_remote_colors(settings.remote_colors)
+recast_manager:set_buff_filters(settings.Buffs)
 recast_manager:set_mode(settings.recast_mode)
 
 ----------------------------------------------------------------
@@ -210,6 +234,9 @@ local function print_help()
     windower.add_to_chat(207, '//recast watch list                    - list watched characters')
     windower.add_to_chat(207, '//recast ja add|remove <name>          - track/untrack a JA group')
     windower.add_to_chat(207, '//recast ja list                       - list tracked JA groups')
+    windower.add_to_chat(207, '//recast buff add|remove <name>        - hide or unhide a buff timer')
+    windower.add_to_chat(207, '//recast buff list                     - list hidden buff timers')
+    windower.add_to_chat(207, '//recast buff clear                    - clear hidden buff filters')
     windower.add_to_chat(207, '//recast color list                    - show remote colors')
     windower.add_to_chat(207, '//recast color <name|default> r g b    - set remote bar color')
     windower.add_to_chat(207, '//recast profile blacklist|whitelist   - save per-job filter profile')
@@ -261,6 +288,59 @@ windower.register_event('addon command', function(cmd, ...)
             windower.add_to_chat(207, ('[Recast] Buff timers: %s'):format(enabled and 'on' or 'off'))
         else
             windower.add_to_chat(207, '[Recast] Usage: //recast buffs on|off')
+        end
+
+    elseif cmd == 'buff' then
+        if type(settings.Buffs) ~= 'table' then
+            settings.Buffs = S{}
+        else
+            settings.Buffs = normalize_buff_set(settings.Buffs)
+        end
+
+        local sub = (args[1] or ''):lower()
+        local raw_name = table.concat(args, ' ', 2)
+        local buff_name = (raw_name or ''):match('^%s*(.-)%s*$') or ''
+        local buff_key = buff_name:lower()
+
+        if sub == 'add' and buff_key ~= '' then
+            settings.Buffs[buff_key] = true
+            config.save(settings, 'all')
+            recast_manager:set_buff_filters(settings.Buffs)
+            windower.add_to_chat(207, ('[Recast] Hidden buff timer: %s'):format(buff_name))
+
+        elseif sub == 'remove' and buff_key ~= '' then
+            settings.Buffs[buff_key] = nil
+            config.save(settings, 'all')
+            recast_manager:set_buff_filters(settings.Buffs)
+            windower.add_to_chat(207, ('[Recast] Showing buff timer: %s'):format(buff_name))
+
+        elseif sub == 'clear' then
+            settings.Buffs = S{}
+            config.save(settings, 'all')
+            recast_manager:set_buff_filters(settings.Buffs)
+            windower.add_to_chat(207, '[Recast] Cleared buff filters')
+
+        elseif sub == 'list' then
+            windower.add_to_chat(207, '[Recast] Hidden buff timers:')
+            local names = {}
+            for name in pairs(settings.Buffs) do
+                names[#names + 1] = name
+            end
+            table.sort(names)
+            if #names == 0 then
+                windower.add_to_chat(207, '  (none)')
+            else
+                for _, name in ipairs(names) do
+                    windower.add_to_chat(207, '  - '..name)
+                end
+            end
+
+        else
+            windower.add_to_chat(207, '[Recast] Usage:')
+            windower.add_to_chat(207, '  //recast buff add <name>    (hide)')
+            windower.add_to_chat(207, '  //recast buff remove <name> (show)')
+            windower.add_to_chat(207, '  //recast buff list')
+            windower.add_to_chat(207, '  //recast buff clear')
         end
 
     elseif cmd == 'stacked' then
