@@ -1,5 +1,6 @@
 -- manager.lua
 local recast_bar = require('bar')
+local packets    = require('packets')
 local res        = require('resources')
 
 local manager = {
@@ -18,11 +19,24 @@ local manager = {
 
     remote_x       = nil,     -- separate anchor for remote column
     remote_y       = nil,
+    custom_x       = nil,
+    custom_y       = nil,
+    buff_x         = nil,
+    buff_y         = nil,
+    show_buffs     = true,
 
     remote_colors  = {},  -- name -> {r,g,b,a}
 }
 
 local STRATAGEM_RECAST_ID = 231
+local DIG_ACTION_CATEGORY = 17
+local DIG_BAR_KEY         = 'CUSTOM:dig'
+local DIG_BAR_LABEL       = 'Chocobo Dig'
+local DIG_RECAST_SECONDS  = 15
+local BUFF_PACKET_ORDER   = 0x09
+local BUFF_BAR_PREFIX     = 'BUFF:'
+local BUFF_TIME_BASE      = 1009810800
+local BUFF_TIME_ROLLOVER  = 0x100000000 / 60
 
 local CHARGE_RECASTS = S{
     231, -- Stratagems
@@ -186,12 +200,16 @@ end
 ----------------------------------------------------------------
 -- Build grouped order: purple (remote) → blue (JA) → green (spells)
 local function build_grouped_order()
-    local remotes, jas, spells = {}, {}, {}
+    local buffs, customs, remotes, jas, spells = {}, {}, {}, {}, {}
 
     for _, key in ipairs(manager.order) do
         local data = manager.bars[key]
         if data then
-            if data.source == 'remote' then
+            if data.source == 'buff' then
+                buffs[#buffs + 1] = key
+            elseif data.source == 'custom' then
+                customs[#customs + 1] = key
+            elseif data.source == 'remote' then
                 remotes[#remotes + 1] = key
             elseif data.kind == 'ja' then
                 jas[#jas + 1] = key
@@ -202,6 +220,8 @@ local function build_grouped_order()
     end
 
     local ordered = {}
+    for _, k in ipairs(buffs)   do ordered[#ordered + 1] = k end
+    for _, k in ipairs(customs) do ordered[#ordered + 1] = k end
     for _, k in ipairs(remotes) do ordered[#ordered + 1] = k end
     for _, k in ipairs(jas)     do ordered[#ordered + 1] = k end
     for _, k in ipairs(spells)  do ordered[#ordered + 1] = k end
@@ -209,23 +229,55 @@ local function build_grouped_order()
     return ordered
 end
 
+local function get_default_buff_anchor()
+    local gap = manager.remote_offsetX or (manager.bar_width + 20)
+    return math.max(0, manager.base_x - (gap * 2)), manager.base_y
+end
+
+local function get_default_custom_anchor()
+    local gap = manager.remote_offsetX or (manager.bar_width + 20)
+    return math.max(0, manager.base_x - gap), manager.base_y
+end
+
 function manager:reflow()
     -- rebuild grouped order every time
     manager.order = build_grouped_order()
 
+    local bx, by = manager.buff_x, manager.buff_y
+    if not bx or not by then
+        bx, by = get_default_buff_anchor()
+    end
+
+    local cx, cy = manager.custom_x, manager.custom_y
+    if not cx or not cy then
+        cx, cy = get_default_custom_anchor()
+    end
+
     if manager.remote_bound then
-        -- old behavior: everything in one stack
+        -- buff/custom bars in their own columns; everything else in the local stack
         local idx = 1
+        local idx_buff = 1
+        local idx_custom = 1
         for _, key in ipairs(manager.order) do
             local data = manager.bars[key]
             if data and data.bar then
-                local y = manager.base_y + (idx - 1) * manager.spacing
-                data.bar:set_position(manager.base_x, y)
-                idx = idx + 1
+                if data.source == 'buff' then
+                    local y = by + (idx_buff - 1) * manager.spacing
+                    data.bar:set_position(bx, y)
+                    idx_buff = idx_buff + 1
+                elseif data.source == 'custom' then
+                    local y = cy + (idx_custom - 1) * manager.spacing
+                    data.bar:set_position(cx, y)
+                    idx_custom = idx_custom + 1
+                else
+                    local y = manager.base_y + (idx - 1) * manager.spacing
+                    data.bar:set_position(manager.base_x, y)
+                    idx = idx + 1
+                end
             end
         end
     else
-        -- split: local (blue/green) in left column, remote (purple) in right
+        -- split: buff far left, custom left, local center, remote right
         if not manager.remote_x then
             manager.remote_x = manager.base_x + (manager.remote_offsetX or (manager.bar_width + 20))
         end
@@ -233,6 +285,8 @@ function manager:reflow()
             manager.remote_y = manager.base_y
         end
 
+        local idx_buff   = 1
+        local idx_custom = 1
         local idx_local  = 1
         local idx_remote = 1
         local lx, ly     = manager.base_x,   manager.base_y
@@ -241,7 +295,15 @@ function manager:reflow()
         for _, key in ipairs(manager.order) do
             local data = manager.bars[key]
             if data and data.bar then
-                if data.source == 'remote' then
+                if data.source == 'buff' then
+                    local y = by + (idx_buff - 1) * manager.spacing
+                    data.bar:set_position(bx, y)
+                    idx_buff = idx_buff + 1
+                elseif data.source == 'custom' then
+                    local y = cy + (idx_custom - 1) * manager.spacing
+                    data.bar:set_position(cx, y)
+                    idx_custom = idx_custom + 1
+                elseif data.source == 'remote' then
                     local y = ry + (idx_remote - 1) * manager.spacing
                     data.bar:set_position(rx, y)
                     idx_remote = idx_remote + 1
@@ -259,6 +321,12 @@ local function apply_color_theme(bar, kind)
     if kind == 'spell' then
         -- green-ish
         windower.prim.set_color(bar.fg_prim, 255,  80, 255,  80)
+    elseif kind == 'buff' then
+        -- amber
+        windower.prim.set_color(bar.fg_prim, 255, 255, 165,  80)
+    elseif kind == 'custom' then
+        -- yellow
+        windower.prim.set_color(bar.fg_prim, 255, 255, 215,  80)
     else
         -- blue-ish
         windower.prim.set_color(bar.fg_prim, 255,  90, 170, 255)
@@ -295,6 +363,38 @@ local function create_bar(name, key, kind, id, recast_id, total)
         total     = total or 0,
         bar       = bar,
         started   = nil,
+    }
+    table.insert(manager.order, key)
+    manager:reflow()
+end
+
+local function create_custom_bar(name, key, total)
+    if manager.bars[key] then
+        local data = manager.bars[key]
+        data.total   = total
+        data.started = os.clock()
+        data.expires = data.started + total
+        if data.bar then
+            data.bar:set_name(name)
+        end
+        return
+    end
+
+    local x = manager.base_x
+    local y = manager.base_y + (#manager.order) * manager.spacing
+
+    local bar = recast_bar.new_recast_bar(x, y, manager.bar_width, manager.bar_height, manager.mode)
+    bar:set_name(name)
+    apply_color_theme(bar, 'custom')
+
+    manager.bars[key] = {
+        name    = name,
+        kind    = 'custom',
+        source  = 'custom',
+        total   = total,
+        bar     = bar,
+        started = os.clock(),
+        expires = os.clock() + total,
     }
     table.insert(manager.order, key)
     manager:reflow()
@@ -355,6 +455,21 @@ function manager:clear_remote_for(owner)
     manager:reflow()
 end
 
+function manager:start_custom_bar(name, total, key)
+    if not name or name == '' then
+        return false
+    end
+
+    total = tonumber(total)
+    if not total or total <= 0 then
+        return false
+    end
+
+    key = key or ('CUSTOM:%s'):format(name:lower())
+    create_custom_bar(name, key, total)
+    return true
+end
+
 local function truncate(str, n)
     if not str then return '' end
     if #str <= n then return str end
@@ -407,6 +522,39 @@ function manager:get_anchor()
 end
 function manager:get_remote_anchor()
     return self.remote_x, self.remote_y
+end
+function manager:get_custom_anchor()
+    local x, y = self.custom_x, self.custom_y
+    if not x or not y then
+        x, y = get_default_custom_anchor()
+    end
+    return x, y
+end
+function manager:get_buff_anchor()
+    local x, y = self.buff_x, self.buff_y
+    if not x or not y then
+        x, y = get_default_buff_anchor()
+    end
+    return x, y
+end
+
+function manager:clear_buff_bars()
+    local keys = {}
+    for key, data in pairs(self.bars) do
+        if data.source == 'buff' then
+            keys[#keys + 1] = key
+        end
+    end
+    for _, key in ipairs(keys) do
+        remove_bar(key)
+    end
+end
+
+function manager:set_buffs_visible(visible)
+    self.show_buffs = not not visible
+    if not self.show_buffs then
+        self:clear_buff_bars()
+    end
 end
 
 -- Remote cooldown bar: owner = character name, abil = JA/spell name
@@ -622,7 +770,7 @@ function manager:update()
 
     for key, data in pairs(self.bars) do
         -- remote cooldowns are driven externally
-        if data.source == 'local' then
+        if data.source == 'local' or data.source == 'custom' or data.source == 'buff' then
             local rem = 0
 
             if data.kind == 'ja' then
@@ -660,6 +808,10 @@ function manager:update()
                 if data.total <= 0 then
                     data.total = rem
                 end
+            elseif data.kind == 'custom' then
+                rem = (data.expires or 0) - now
+            elseif data.kind == 'buff' then
+                rem = (data.expires or 0) - os.time()
             end
 
             if rem <= 0 then
@@ -676,6 +828,98 @@ function manager:update()
         last_resync = now
         self:resync_missing()
     end
+end
+
+local function decode_buff_end_time(raw)
+    if not raw or raw <= 0 then
+        return nil
+    end
+
+    local now = os.time()
+    local epoch = math.floor((now - BUFF_TIME_BASE) / BUFF_TIME_ROLLOVER)
+    local candidate = BUFF_TIME_BASE + (raw / 60) + (epoch * BUFF_TIME_ROLLOVER)
+
+    if candidate < (now - 3600) then
+        candidate = candidate + BUFF_TIME_ROLLOVER
+    elseif candidate > (now + BUFF_TIME_ROLLOVER) then
+        candidate = candidate - BUFF_TIME_ROLLOVER
+    end
+
+    return candidate
+end
+
+function manager:update_buff_bars(buff_ids, buff_times)
+    if not self.show_buffs then
+        return
+    end
+
+    local seen = {}
+    local now = os.time()
+
+    for i = 1, 32 do
+        local buff_id = buff_ids and buff_ids[i]
+        local raw_end = buff_times and buff_times[i]
+        local key = ('%s%d'):format(BUFF_BAR_PREFIX, i)
+
+        if buff_id and buff_id ~= 0 and buff_id ~= 255 and raw_end and raw_end > 0 then
+            local buff = res.buffs[buff_id]
+            local expires = decode_buff_end_time(raw_end)
+            local remaining = expires and (expires - now) or 0
+            local buff_name = buff and (buff.en or buff.name)
+
+            if buff_name and remaining > 0 then
+                seen[key] = true
+
+                local data = self.bars[key]
+                if not data then
+                    local x = self.base_x
+                    local y = self.base_y + (#self.order) * self.spacing
+                    local bar = recast_bar.new_recast_bar(x, y, self.bar_width, self.bar_height, self.mode)
+                    bar:set_name(buff_name)
+                    apply_color_theme(bar, 'buff')
+
+                    data = {
+                        name = buff_name,
+                        kind = 'buff',
+                        source = 'buff',
+                        buff_id = buff_id,
+                        slot = i,
+                        total = remaining,
+                        bar = bar,
+                        expires = expires,
+                        last_remaining = remaining,
+                    }
+                    self.bars[key] = data
+                    table.insert(self.order, key)
+                else
+                    if data.bar and data.name ~= buff_name then
+                        data.bar:set_name(buff_name)
+                    end
+                    data.name = buff_name
+                    data.buff_id = buff_id
+                    data.slot = i
+                    data.expires = expires
+
+                    if not data.total or remaining > (data.last_remaining or 0) + 2 then
+                        data.total = remaining
+                    end
+                    data.last_remaining = remaining
+                end
+            end
+        end
+    end
+
+    local stale = {}
+    for key, data in pairs(self.bars) do
+        if data.source == 'buff' and not seen[key] then
+            stale[#stale + 1] = key
+        end
+    end
+    for _, key in ipairs(stale) do
+        remove_bar(key)
+    end
+
+    self:reflow()
 end
 
 ----------------------------------------------------------------
@@ -714,6 +958,46 @@ windower.register_event('action', function(act)
 
 end)
 
+windower.register_event('outgoing chunk', function(id, data, modified, injected, blocked)
+    if injected or blocked or id ~= 0x1A then
+        return
+    end
+
+    local ok, packet = pcall(packets.parse, 'outgoing', data)
+    if not ok or not packet then
+        return
+    end
+
+    if packet.Category == DIG_ACTION_CATEGORY then
+        create_custom_bar(DIG_BAR_LABEL, DIG_BAR_KEY, DIG_RECAST_SECONDS)
+    end
+end)
+
+windower.register_event('incoming chunk', function(id, data, modified, injected, blocked)
+    if injected or blocked or id ~= 0x063 then
+        return
+    end
+
+    if data:byte(5) ~= BUFF_PACKET_ORDER then
+        return
+    end
+
+    local ok, packet = pcall(packets.parse, 'incoming', data)
+    if not ok or not packet then
+        return
+    end
+
+    local buff_ids = {}
+    local buff_times = {}
+
+    for i = 1, 32 do
+        buff_ids[i] = packet['Buffs ' .. i]
+        buff_times[i] = packet['Time ' .. i]
+    end
+
+    manager:update_buff_bars(buff_ids, buff_times)
+end)
+
 ----------------------------------------------------------------
 -- Continuous update (prerender)
 ----------------------------------------------------------------
@@ -735,6 +1019,12 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             if manager.drag.stack == 'remote' and not manager.remote_bound then
                 manager.remote_x = x - manager.drag.dx
                 manager.remote_y = y - manager.drag.dy
+            elseif manager.drag.stack == 'buff' then
+                manager.buff_x = x - manager.drag.dx
+                manager.buff_y = y - manager.drag.dy
+            elseif manager.drag.stack == 'custom' then
+                manager.custom_x = x - manager.drag.dx
+                manager.custom_y = y - manager.drag.dy
             else
                 manager.base_x = x - manager.drag.dx
                 manager.base_y = y - manager.drag.dy
@@ -760,6 +1050,26 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
                     stack = 'remote'
                     ax    = manager.remote_x
                     ay    = manager.remote_y
+                elseif data.source == 'buff' then
+                    if not manager.buff_x then
+                        manager.buff_x, manager.buff_y = get_default_buff_anchor()
+                    end
+                    if not manager.buff_y then
+                        manager.buff_y = manager.base_y
+                    end
+                    stack = 'buff'
+                    ax    = manager.buff_x
+                    ay    = manager.buff_y
+                elseif data.source == 'custom' then
+                    if not manager.custom_x then
+                        manager.custom_x, manager.custom_y = get_default_custom_anchor()
+                    end
+                    if not manager.custom_y then
+                        manager.custom_y = manager.base_y
+                    end
+                    stack = 'custom'
+                    ax    = manager.custom_x
+                    ay    = manager.custom_y
                 else
                     stack = 'local'
                     ax    = manager.base_x
