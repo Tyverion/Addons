@@ -1,7 +1,7 @@
 -- recast.lua
 _addon.name    = 'recast'
 _addon.author  = 'Ender'
-_addon.version = '27.3.2026'
+_addon.version = '27.03.2026'
 _addon.command = 'recast'
 
 local config         = require('config')
