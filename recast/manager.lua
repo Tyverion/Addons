@@ -24,6 +24,8 @@ local manager = {
     buff_x         = nil,
     buff_y         = nil,
     show_buffs     = true,
+    last_buff_ids  = nil,
+    last_buff_times = nil,
 
     remote_colors  = {},  -- name -> {r,g,b,a}
 }
@@ -574,12 +576,18 @@ function manager:set_buffs_visible(visible)
     self.show_buffs = not not visible
     if not self.show_buffs then
         self:clear_buff_bars()
+    elseif self.last_buff_ids and self.last_buff_times then
+        self:update_buff_bars(self.last_buff_ids, self.last_buff_times)
     end
 end
 
 function manager:set_buff_filters(filters)
     buff_filters = filters or {}
-    self:clear_buff_bars()
+    if self.show_buffs and self.last_buff_ids and self.last_buff_times then
+        self:update_buff_bars(self.last_buff_ids, self.last_buff_times)
+    else
+        self:clear_buff_bars()
+    end
 end
 
 -- Remote cooldown bar: owner = character name, abil = JA/spell name
@@ -876,6 +884,13 @@ end
 function manager:update_buff_bars(buff_ids, buff_times)
     if not self.show_buffs then
         return
+    end
+
+    self.last_buff_ids = {}
+    self.last_buff_times = {}
+    for i = 1, 32 do
+        self.last_buff_ids[i] = buff_ids and buff_ids[i]
+        self.last_buff_times[i] = buff_times and buff_times[i]
     end
 
     local seen = {}
