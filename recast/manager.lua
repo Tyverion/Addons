@@ -233,8 +233,8 @@ local function build_grouped_order()
     table.sort(buffs, function(a, b)
         local da = manager.bars[a]
         local db = manager.bars[b]
-        local ra = da and ((da.expires or 0) - os.time()) or 0
-        local rb = db and ((db.expires or 0) - os.time()) or 0
+        local ra = da and ((da.expires_clock or 0) - os.clock()) or 0
+        local rb = db and ((db.expires_clock or 0) - os.clock()) or 0
         if ra == rb then
             return (da and da.name or '') < (db and db.name or '')
         end
@@ -844,7 +844,7 @@ function manager:update()
             elseif data.kind == 'custom' then
                 rem = (data.expires or 0) - now
             elseif data.kind == 'buff' then
-                rem = (data.expires or 0) - os.time()
+                rem = (data.expires_clock or 0) - now
             end
 
             if rem <= 0 then
@@ -895,6 +895,7 @@ function manager:update_buff_bars(buff_ids, buff_times)
 
     local seen = {}
     local now = os.time()
+    local now_clock = os.clock()
 
     for i = 1, 32 do
         local buff_id = buff_ids and buff_ids[i]
@@ -927,6 +928,7 @@ function manager:update_buff_bars(buff_ids, buff_times)
                         total = remaining,
                         bar = bar,
                         expires = expires,
+                        expires_clock = now_clock + remaining,
                         last_remaining = remaining,
                     }
                     self.bars[key] = data
@@ -939,6 +941,7 @@ function manager:update_buff_bars(buff_ids, buff_times)
                     data.buff_id = buff_id
                     data.slot = i
                     data.expires = expires
+                    data.expires_clock = now_clock + remaining
 
                     if not data.total or remaining > (data.last_remaining or 0) + 2 then
                         data.total = remaining
