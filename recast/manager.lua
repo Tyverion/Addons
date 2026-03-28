@@ -151,6 +151,15 @@ local profile = {
     only_spells = {},
     only_ja     = {},
 }
+local buff_filters = {}
+
+local function buff_allowed(name)
+    if not name or name == '' then
+        return false
+    end
+
+    return buff_filters[name:lower()] ~= true
+end
 
 local function load_profile(job)
     job = job or 'DEFAULT'
@@ -218,6 +227,17 @@ local function build_grouped_order()
             end
         end
     end
+
+    table.sort(buffs, function(a, b)
+        local da = manager.bars[a]
+        local db = manager.bars[b]
+        local ra = da and ((da.expires or 0) - os.time()) or 0
+        local rb = db and ((db.expires or 0) - os.time()) or 0
+        if ra == rb then
+            return (da and da.name or '') < (db and db.name or '')
+        end
+        return ra > rb
+    end)
 
     local ordered = {}
     for _, k in ipairs(buffs)   do ordered[#ordered + 1] = k end
@@ -557,6 +577,11 @@ function manager:set_buffs_visible(visible)
     end
 end
 
+function manager:set_buff_filters(filters)
+    buff_filters = filters or {}
+    self:clear_buff_bars()
+end
+
 -- Remote cooldown bar: owner = character name, abil = JA/spell name
 -- kind = 'ja' or 'spell', rem/total in seconds
 function manager:set_remote_colors(tbl)
@@ -867,7 +892,7 @@ function manager:update_buff_bars(buff_ids, buff_times)
             local remaining = expires and (expires - now) or 0
             local buff_name = buff and (buff.en or buff.name)
 
-            if buff_name and remaining > 0 then
+            if buff_name and buff_allowed(buff_name) and remaining > 0 then
                 seen[key] = true
 
                 local data = self.bars[key]
