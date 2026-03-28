@@ -1,7 +1,7 @@
 -- recast.lua
 _addon.name    = 'recast'
 _addon.author  = 'Ender'
-_addon.version = '2025.12.06'
+_addon.version = '27.3.2026'
 _addon.command = 'recast'
 
 local config         = require('config')
@@ -21,6 +21,11 @@ local defaults = {
     remote_offsetX = 180,     -- default gap between stacks
     remote_x       = 34,
     remote_y       = 297,
+    custom_x       = nil,
+    custom_y       = nil,
+    buff_x         = nil,
+    buff_y         = nil,
+    show_buffs     = true,
     interval            = 0.1,
     hide_below_zero     = false,
     characters_to_watch = S{},
@@ -33,6 +38,8 @@ local defaults = {
     },
     remote_colors = {
         Default = { r = 190, g = 120, b = 255 }, -- fallback (current purple)
+        Yuzzie  = { r = 120, g = 220, b = 255 }, -- light blue
+        Kyohyi  = { r = 120, g = 255, b = 180 }, -- teal/green
     },
 }
 
@@ -121,6 +128,12 @@ recast_manager.remote_bound   = settings.remote_bound
 recast_manager.remote_offsetX = settings.remote_offsetX
 recast_manager.remote_x       = settings.remote_x
 recast_manager.remote_y       = settings.remote_y
+recast_manager.custom_x       = settings.custom_x
+recast_manager.custom_y       = settings.custom_y
+recast_manager.buff_x         = settings.buff_x
+recast_manager.buff_y         = settings.buff_y
+recast_manager.show_buffs     = settings.show_buffs
+recast_manager.resync_interval = settings.interval
 recast_manager:set_remote_colors(settings.remote_colors)
 recast_manager:set_mode(settings.recast_mode)
 
@@ -133,9 +146,13 @@ windower.register_event('mouse', function(type)
 
     local x, y   = recast_manager:get_anchor()
     local rx, ry = recast_manager:get_remote_anchor()
+    local cx, cy = recast_manager:get_custom_anchor()
+    local bx, by = recast_manager:get_buff_anchor()
 
     if x == settings.recast_x and y == settings.recast_y
-       and rx == settings.remote_x and ry == settings.remote_y then
+       and rx == settings.remote_x and ry == settings.remote_y
+       and cx == settings.custom_x and cy == settings.custom_y
+       and bx == settings.buff_x and by == settings.buff_y then
         return
     end
 
@@ -145,6 +162,10 @@ windower.register_event('mouse', function(type)
     settings.recast_y = y
     settings.remote_x = rx
     settings.remote_y = ry
+    settings.custom_x = cx
+    settings.custom_y = cy
+    settings.buff_x = bx
+    settings.buff_y = by
     config.save(settings, 'all')
 end)
 
@@ -162,6 +183,12 @@ windower.register_event('unload', function()
     local rx, ry = recast_manager:get_remote_anchor()
     settings.remote_x = rx
     settings.remote_y = ry
+    local cx, cy = recast_manager:get_custom_anchor()
+    settings.custom_x = cx
+    settings.custom_y = cy
+    local bx, by = recast_manager:get_buff_anchor()
+    settings.buff_x = bx
+    settings.buff_y = by
 
     config.save(settings, 'all')
 end)
@@ -186,6 +213,8 @@ local function print_help()
     windower.add_to_chat(207, '//recast color list                    - show remote colors')
     windower.add_to_chat(207, '//recast color <name|default> r g b    - set remote bar color')
     windower.add_to_chat(207, '//recast profile blacklist|whitelist   - save per-job filter profile')
+    windower.add_to_chat(207, '//recast buffs on|off                  - show or hide buff timers')
+    windower.add_to_chat(207, '//recast start <name> <seconds>        - start a local countdown bar')
 end
 
 windower.register_event('addon command', function(cmd, ...)
@@ -207,6 +236,31 @@ windower.register_event('addon command', function(cmd, ...)
             windower.add_to_chat(207, ('[Recast] Mode set to: %s'):format(arg))
         else
             windower.add_to_chat(207, '[Recast] Usage: //recast style up|down')
+        end
+    
+    elseif cmd == 'start' then
+        local seconds = tonumber(args[#args] or '')
+        local name = table.concat(args, ' ', 1, math.max(0, #args - 1))
+        name = (name or ''):match('^%s*(.-)%s*$') or ''
+
+        if recast_manager.start_custom_bar and name ~= '' and seconds and seconds > 0 then
+            recast_manager:start_custom_bar(name, seconds)
+            windower.add_to_chat(207, ('[Recast] Started timer: %s (%ss)'):format(name, seconds))
+        else
+            windower.add_to_chat(207, '[Recast] Usage: //recast start <name> <seconds>')
+        end
+
+    elseif cmd == 'buffs' then
+        if arg == 'on' or arg == 'off' then
+            local enabled = (arg == 'on')
+            settings.show_buffs = enabled
+            config.save(settings, 'all')
+            if recast_manager.set_buffs_visible then
+                recast_manager:set_buffs_visible(enabled)
+            end
+            windower.add_to_chat(207, ('[Recast] Buff timers: %s'):format(enabled and 'on' or 'off'))
+        else
+            windower.add_to_chat(207, '[Recast] Usage: //recast buffs on|off')
         end
 
     elseif cmd == 'stacked' then
