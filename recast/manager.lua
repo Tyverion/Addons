@@ -48,6 +48,10 @@ local CHARGE_RECASTS = S{
 local CHARGE_LABELS = {
     [231] = 'Stratagems',
 }
+local SUPPRESSED_RECASTS = {
+    -- Some clients report Vivacious Pulse's recast slot ticking with Jigs.
+    [242] = 218,
+}
 
 -- Track SCH charge state locally
 local strat_state = { max_charges = 0, charges = nil, last_seconds = nil }
@@ -117,8 +121,8 @@ local function get_recast_group_label(recast_id)
 
     -- Use ability_recasts first
     local r = res.ability_recasts[recast_id]
-    if r and r.name and r.name ~= '' then
-        return r.name
+    if r and r.en and r.en ~= '' then
+        return r.en
     end
 
     -- Fallback (should rarely ever be needed)
@@ -139,6 +143,15 @@ local function should_skip_recast_id(recast_id, abil_recasts)
             return true
         end
     end
+
+    local suppressed_by = SUPPRESSED_RECASTS[recast_id]
+    if suppressed_by then
+        local r = abil_recasts or windower.ffxi.get_ability_recasts() or {}
+        if (r[suppressed_by] or 0) > 0 then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -993,8 +1006,15 @@ windower.register_event('action', function(act)
             local recast_id = abil.recast_id
             if not should_skip_recast_id(recast_id) then
                 local key       = ('JA:%d'):format(recast_id)
-                local label     = get_recast_group_label(recast_id) or abil.en
-                create_bar(label, key, 'ja', nil, recast_id, 0)
+                local label     = abil.en or get_recast_group_label(recast_id)
+                local existing  = manager.bars[key]
+
+                if existing and existing.bar and existing.name ~= label then
+                    existing.name = label
+                    existing.bar:set_name(label)
+                else
+                    create_bar(label, key, 'ja', nil, recast_id, 0)
+                end
             end
         end
     end
