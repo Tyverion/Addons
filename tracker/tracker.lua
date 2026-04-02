@@ -4,7 +4,6 @@ _addon.command = 'track'
 
 local packets = require('packets')
 local texts = require('texts')
-local log_path = windower.addon_path .. 'tracker_index_map.log'
 local tracker_box = texts.new('', {
     pos = {x = 900, y = 320},
     bg = {alpha = 45, red = 0, green = 0, blue = 0, visible = true},
@@ -35,27 +34,6 @@ local zone_name_map = {}
 local zone_cache_pending = false
 tracker_box:hide()
 
-local function write_zone_cache_log()
-    local f = io.open(log_path, 'a')
-    if not f then return end
-
-    local info = windower.ffxi.get_info()
-    f:write(('\n[Zone] = %s\n'):format(tostring(info and info.zone or 'unknown')))
-
-    local keys = {}
-    for index in pairs(zone_index_map) do
-        keys[#keys + 1] = index
-    end
-    table.sort(keys)
-
-    for _, index in ipairs(keys) do
-        f:write((' [%d] = %s\n'):format(index, tostring(zone_index_map[index])))
-    end
-
-    f:write(' ----- End Zone Cache -----\n')
-    f:close()
-end
-
 local function slug(s)
     return (s or ''):gsub('%z.*', ''):lower()
 end
@@ -80,7 +58,6 @@ local function rebuild_zone_cache()
         end
     end
 
-    write_zone_cache_log()
 end
 
 local function schedule_zone_cache(delay)
