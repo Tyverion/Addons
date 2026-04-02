@@ -252,7 +252,10 @@ local function start_recording(player)
     if not player then return end
     state.recording = true
     state.active = false
+    state.route = {}
+    state.route_index = 1
     state.target = nil
+    state.last_recorded = nil
     reset_dig_wait()
     add_route_point(player, true)
     windower.add_to_chat(207, '[Digger] Recording started.')
