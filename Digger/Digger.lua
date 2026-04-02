@@ -20,16 +20,20 @@ local JST_OFFSET = 9 * 60 * 60
 local defaults = {
     fatigue = 0,
     fatigue_day = '',
+    box_x = 900,
+    box_y = 360,
 }
 
 local settings = config.load(defaults)
 local fatigue = settings.fatigue or 0
 local last_dig_result = 'None'
+local hovered_button = nil
+local drag_state = nil
 
 local digger_box = texts.new('', {
-    pos = {x = 900, y = 360},
+    pos = {x = settings.box_x, y = settings.box_y},
     bg = {alpha = 45, red = 0, green = 0, blue = 0, visible = true},
-    flags = {bold = true, right = false, bottom = false, draggable = true},
+    flags = {bold = true, right = false, bottom = false, draggable = false},
     padding = 6,
     text = {
         font = 'Consolas',
@@ -53,6 +57,9 @@ local state = {
     saw_animation_packet = false,
     last_recorded = nil,
 }
+
+local BUTTON_RECORD = 'record'
+local BUTTON_RUN = 'run'
 
 local function get_jst_day(now)
     return os.date('!%Y-%m-%d', (now or os.time()) + JST_OFFSET)
@@ -132,16 +139,28 @@ local function update_ui()
     local hours = math.floor(seconds_until_reset / 3600)
     local minutes = math.floor((seconds_until_reset % 3600) / 60)
     local seconds = seconds_until_reset % 60
+    local record_label = state.recording and 'Record Stop' or 'Record Start'
+    local run_label = state.active and 'Digger Stop' or 'Digger Start'
+    local record_prefix = hovered_button == BUTTON_RECORD and '> ' or '[ '
+    local record_suffix = hovered_button == BUTTON_RECORD and ' ]<' or ' ]'
+    local run_prefix = hovered_button == BUTTON_RUN and '> ' or '[ '
+    local run_suffix = hovered_button == BUTTON_RUN and ' ]<' or ' ]'
 
     digger_box:text((
-        'Digger\nGreens: %d\nFatigue: %d/100\nLast Dig: %s\nReset In: %02d:%02d:%02d'
+        'Digger\nGreens: %d\nFatigue: %d/100\nLast Dig: %s\nReset In: %02d:%02d:%02d\n%s%s%s\n%s%s%s'
     ):format(
         get_gysahl_greens(),
         fatigue,
         last_dig_result,
         hours,
         minutes,
-        seconds
+        seconds,
+        record_prefix,
+        record_label,
+        record_suffix,
+        run_prefix,
+        run_label,
+        run_suffix
     ))
     digger_box:show()
 end
@@ -229,6 +248,34 @@ local function stop_running()
     windower.ffxi.run(false)
 end
 
+local function start_recording(player)
+    if not player then return end
+    state.recording = true
+    state.active = false
+    state.target = nil
+    reset_dig_wait()
+    add_route_point(player, true)
+    windower.add_to_chat(207, '[Digger] Recording started.')
+end
+
+local function stop_recording()
+    state.recording = false
+    windower.add_to_chat(207, ('[Digger] Recording stopped. %d points saved.'):format(#state.route))
+end
+
+local function start_running()
+    if #state.route == 0 then
+        windower.add_to_chat(207, '[Digger] No route recorded.')
+        return
+    end
+
+    state.recording = false
+    state.active = true
+    state.route_index = 1
+    set_target_from_route()
+    windower.add_to_chat(207, ('[Digger] Running route with %d points.'):format(#state.route))
+end
+
 windower.register_event('outgoing chunk', function(id, data, modified, injected, blocked)
     if blocked or id ~= DIG_FINISH_PACKET_ID then
         return
@@ -272,7 +319,10 @@ end)
 
 windower.register_event('prerender', function()
     local player = get_player_mob()
-    if not player then return end
+    if not player then
+        digger_box:hide()
+        return
+    end
 
     sync_fatigue_reset()
     update_ui()
@@ -300,8 +350,87 @@ windower.register_event('prerender', function()
     windower.ffxi.run(heading)
     windower.ffxi.turn(heading)
 
-    if not get_chocobo_buff() then 
-        digger_box:destroy() 
+    if not get_chocobo_buff() then
+        digger_box:hide()
+    end
+end)
+
+windower.register_event('mouse', function(type, x, y, delta, blocked)
+    if drag_state then
+        if type == 0 then
+            digger_box:pos(x - drag_state.offset_x, y - drag_state.offset_y)
+            return true
+        end
+
+        if type == 2 then
+            settings.box_x = digger_box:pos_x()
+            settings.box_y = digger_box:pos_y()
+            config.save(settings)
+            drag_state = nil
+            return true
+        end
+    end
+
+    if blocked then
+        return
+    end
+
+    if not digger_box:visible() or not digger_box:hover(x, y) then
+        if hovered_button ~= nil then
+            hovered_button = nil
+            update_ui()
+        end
+        return
+    end
+
+    local _, height = digger_box:extents()
+    local lines = select(2, digger_box:text():gsub('\n', '\n')) + 1
+    local offset_y = height / lines
+    local pos_y = y - digger_box:pos_y()
+    local line_index = math.floor(pos_y / offset_y) + 1
+    local button = nil
+
+    if line_index == 6 then
+        button = BUTTON_RECORD
+    elseif line_index == 7 then
+        button = BUTTON_RUN
+    end
+
+    if type == 0 and hovered_button ~= button then
+        hovered_button = button
+        update_ui()
+        return
+    end
+
+    local is_click = type == 1
+
+    if is_click and line_index == 1 then
+        drag_state = {
+            offset_x = x - digger_box:pos_x(),
+            offset_y = y - digger_box:pos_y(),
+        }
+        return true
+    end
+
+    if is_click and button == BUTTON_RECORD then
+        local player = get_player_mob()
+        if state.recording then
+            stop_recording()
+        else
+            start_recording(player)
+        end
+        update_ui()
+        return
+    end
+
+    if is_click and button == BUTTON_RUN then
+        if state.active then
+            stop_running()
+            windower.add_to_chat(207, '[Digger] Stopped.')
+        else
+            start_running()
+        end
+        update_ui()
     end
 end)
 
@@ -330,16 +459,9 @@ windower.register_event('addon command', function(...)
 
     if cmd == 'record' then
         if sub == 'start' then
-            if not player then return end
-            state.recording = true
-            state.active = false
-            state.target = nil
-            reset_dig_wait()
-            add_route_point(player, true)
-            windower.add_to_chat(207, '[Digger] Recording started.')
+            start_recording(player)
         elseif sub == 'stop' then
-            state.recording = false
-            windower.add_to_chat(207, ('[Digger] Recording stopped. %d points saved.'):format(#state.route))
+            stop_recording()
         elseif sub == 'clear' then
             state.recording = false
             stop_running()
@@ -379,16 +501,7 @@ windower.register_event('addon command', function(...)
     end
 
     if cmd == 'run' then
-        if #state.route == 0 then
-            windower.add_to_chat(207, '[Digger] No route recorded.')
-            return
-        end
-
-        state.recording = false
-        state.active = true
-        state.route_index = 1
-        set_target_from_route()
-        windower.add_to_chat(207, ('[Digger] Running route with %d points.'):format(#state.route))
+        start_running()
         return
     end
 
