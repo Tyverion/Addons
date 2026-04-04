@@ -27,7 +27,7 @@
 
 _addon = {}
 _addon.name = 'ROE'
-_addon.version = '1.1'
+_addon.version = '1.2'
 _addon.author = "Cair"
 _addon.commands = {'roe'}
 
@@ -340,12 +340,42 @@ local function inc_chunk_handler(id,data)
 end
 
 local function addon_command_handler(command,...)
+    local args = {...}
     local cmd  = command and command:lower() or "help"
+
+    if cmd == 'all' then
+        if #args == 0 then
+            error('`all` requires a ROE command to broadcast')
+            return
+        end
+
+        local ipc_payload = table.concat(args, ' ')
+        windower.send_ipc_message('roe ' .. ipc_payload)
+        addon_command_handler(unpack(args))
+        return
+    end
+
     if cmd_handlers[cmd] then
-        cmd_handlers[cmd](...)
+        cmd_handlers[cmd](unpack(args))
     else
         error('unknown command `%s`':format(cmd or ''))
     end
+end
+
+local function ipc_message_handler(msg)
+    if not msg then return end
+
+    local args = msg:split(' ')
+    if #args == 0 or args[1]:lower() ~= 'roe' then
+        return
+    end
+
+    table.remove(args, 1)
+    if #args == 0 then
+        return
+    end
+
+    addon_command_handler(unpack(args))
 end
 
 local function load_handler()
@@ -362,4 +392,5 @@ end
 
 windower.register_event('incoming chunk', inc_chunk_handler)
 windower.register_event('addon command', addon_command_handler)
+windower.register_event('ipc message', ipc_message_handler)
 windower.register_event('load', load_handler)
