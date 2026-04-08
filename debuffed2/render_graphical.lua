@@ -16,7 +16,7 @@ function M.new(helpers)
     local GRAPH_ROW_GAP = 34
     local GRAPH_BG_COLOR = {58, 16, 24}
     local GRAPH_TEXT_COLOR = {255, 190, 190}
-    local GRAPH_STROKE_COLOR = {40, 0, 0}
+    local GRAPH_STROKE_COLOR = {0, 0, 0}
     local GRAPH_LABEL_COLOR = {255, 255, 255}
     local GRAPH_ACTION_COLOR = {205, 220, 235}
     local GRAPH_STACK_COLOR = {255, 255, 255}
