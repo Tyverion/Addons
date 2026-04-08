@@ -149,9 +149,52 @@ local debuff_short_labels = {
     ['Foe Requiem V']       = 'Requiem',
     ['Foe Requiem VI']      = 'Requiem',
     ['Foe Requiem VII']     = 'Requiem',
+    ['Absorb-STR']          = 'STR-D',
+    ['Absorb-DEX']          = 'DEX-D',
+    ['Absorb-VIT']          = 'VIT-D',
+    ['Absorb-AGI']          = 'AGI-D',
+    ['Absorb-INT']          = 'INT-D',
+    ['Absorb-MND']          = 'MND-D',
+    ['Absorb-CHR']          = 'CHR-D',
+    ['Stun']                = 'Stun',
+    ['Flash']               = 'Flash',
 }
 
 ability_icon_overrides = {}
+spell_overrides = {
+    [112] = {status = 156}, -- Flash
+    [252] =  {status = 10}, -- Stun
+    [266] = {status = 136}, -- Absorb-STR STR Down
+    [267] = {status = 137}, -- Absorb-DEX DEX Down
+    [268] = {status = 138}, -- Absorb-VIT VIT Down
+    [269] = {status = 139}, -- Absorb-AGI AGI Down
+    [270] = {status = 140}, -- Absorb-INT INT Down
+    [271] = {status = 141}, -- Absorb-MND MND Down
+    [272] = {status = 142}, -- Absorb-CHR CHR Down
+}
+
+local function get_spell_resource(spell_id)
+    local sp = res.spells[spell_id]
+    local override = spell_overrides[spell_id]
+    if not sp and not override then
+        return nil
+    end
+
+    if not override then
+        return sp
+    end
+
+    local merged = {}
+    if sp then
+        for k, v in pairs(sp) do
+            merged[k] = v
+        end
+    end
+    for k, v in pairs(override) do
+        merged[k] = v
+    end
+    return merged
+end
 
 local function build_debuff_label(name)
     if not name or name == '' then
@@ -476,7 +519,8 @@ function apply_spell_debuff(target, effect_id, spell_id, actor)
     debuffed_mobs[target] = debuffed_mobs[target] or {}
     local mob = windower.ffxi.get_mob_by_id(target)
     assign_label(target, mob and mob.name)
-    local base = (res.spells[spell_id] and res.spells[spell_id].duration) or 0
+    local sp = get_spell_resource(spell_id)
+    local base = (sp and sp.duration) or 0
     debuffed_mobs[target][effect_id] = {
         kind='spell', id=spell_id, timer=os.clock()+base, actor=actor
     }
@@ -494,6 +538,8 @@ end
 local DIA_EFF, BIO_EFF, HELIX_EFF, KAST_EFF = 134, 135, 186, 23
 local ACTION_DISPLAY_SECONDS = 10
 local SPELL_NO_EFFECT_MESSAGES = S{75, 283, 659}
+local SPELL_DEBUFF_APPLY_MESSAGES = S{82,203,205,230,236,237,266,267,268,269,270,271,272,277,278,279,280,283,329,330,331,332,333,334,335,425,581,656,659}
+local SPELL_PARAMLESS_APPLY_MESSAGES = S{329,330,331,332,333,334,335}
 local ACTION_WEAKNESSES = {
     Aita = {
         ['Eroding Flesh']   = 'Wind',
@@ -558,10 +604,10 @@ function inc_action(act)
             local msg       = a1 and a1.message
             local effect_id = a1 and a1.param
             if target and not party_by_id[target] and target ~= player_id then
-                local sp = res.spells[spell]
-                if effect_id and S{82,203,205,230,236,237,266,267,268,269,270,271,272,277,278,279,280,283,425,581,656,659}:contains(msg) then
-                    if sp and sp.status == effect_id then 
-                        apply_spell_debuff(target, effect_id, spell, actor) 
+                local sp = get_spell_resource(spell)
+                if SPELL_DEBUFF_APPLY_MESSAGES:contains(msg) then
+                    if sp and sp.status and (sp.status == effect_id or SPELL_PARAMLESS_APPLY_MESSAGES:contains(msg)) then
+                        apply_spell_debuff(target, sp.status, spell, actor)
                     end
                 elseif sp and sp.status and SPELL_NO_EFFECT_MESSAGES:contains(msg) then
                     apply_spell_debuff(target, sp.status, spell, actor)
