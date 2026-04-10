@@ -1,7 +1,7 @@
 -- recast.lua
 _addon.name    = 'recast'
 _addon.author  = 'Ender'
-_addon.version = '27.03.2026'
+_addon.version = '09.04.2026'
 _addon.command = 'recast'
 
 local config         = require('config')
@@ -17,6 +17,7 @@ local defaults = {
     recast_y       = 450,
     BAR_WIDTH      = 150,
     BAR_HEIGHT     = 12,
+    show_ms        = true,
     remote_bound   = false,   -- true = share column, false = separate column
     remote_offsetX = 180,     -- default gap between stacks
     remote_x       = 34,
@@ -160,6 +161,7 @@ recast_manager.resync_interval = settings.interval
 recast_manager:set_remote_colors(settings.remote_colors)
 recast_manager:set_buff_filters(settings.Buffs)
 recast_manager:set_mode(settings.recast_mode)
+recast_manager:set_show_ms(settings.show_ms)
 
 ----------------------------------------------------------------
 -- Persist anchors when you finish dragging (mouse up)
@@ -229,6 +231,7 @@ local function print_help()
     windower.add_to_chat(207, '//recast style up|down                 - stack direction')
     windower.add_to_chat(207, '//recast sizeh small|mid|large         - bar height presets')
     windower.add_to_chat(207, '//recast sizew <80-400>                - bar width')
+    windower.add_to_chat(207, '//recast ms on|off                     - show or hide hundredths')
     windower.add_to_chat(207, '//recast stacked on|off                - share local/remote column')
     windower.add_to_chat(207, '//recast watch add|remove <name>       - track another character')
     windower.add_to_chat(207, '//recast watch list                    - list watched characters')
@@ -263,6 +266,17 @@ windower.register_event('addon command', function(cmd, ...)
             windower.add_to_chat(207, ('[Recast] Mode set to: %s'):format(arg))
         else
             windower.add_to_chat(207, '[Recast] Usage: //recast style up|down')
+        end
+
+    elseif cmd == 'ms' then
+        if arg == 'on' or arg == 'off' then
+            local enabled = (arg == 'on')
+            settings.show_ms = enabled
+            config.save(settings, 'all')
+            recast_manager:set_show_ms(enabled)
+            windower.add_to_chat(207, ('[Recast] Milliseconds: %s'):format(enabled and 'on' or 'off'))
+        else
+            windower.add_to_chat(207, '[Recast] Usage: //recast ms on|off')
         end
     
     elseif cmd == 'start' then
