@@ -13,6 +13,7 @@ local manager = {
     drag       = nil,
     bar_width  = 200,
     bar_height = 14,
+    show_ms    = true,
 
     remote_bound   = true,   -- overridden by recast.lua
     remote_offsetX = 180,
@@ -28,6 +29,7 @@ local manager = {
     last_buff_times = nil,
 
     remote_colors  = {},  -- name -> {r,g,b,a}
+    roll_results   = {},  -- buff_id -> latest roll result
 }
 
 local STRATAGEM_RECAST_ID = 231
@@ -167,6 +169,39 @@ local profile = {
     only_ja     = {},
 }
 local buff_filters = {}
+local roll_buff_id_cache = {}
+local roll_name_aliases = {
+    ["Warrior's Roll"] = 'WAR Roll',
+    ["Monk's Roll"] = 'MNK Roll',
+    ["Healer's Roll"] = 'WHM Roll',
+    ["Wizard's Roll"] = 'BLM Roll',
+    ["Caster's Roll"] = 'RDM Roll',
+    ["Rogue's Roll"] = 'THF Roll',
+    ["Gallant's Roll"] = 'PLD Roll',
+    ["Chaos Roll"] = 'DRK Roll',
+    ["Beast Roll"] = 'BST Roll',
+    ["Choral Roll"] = 'BRD Roll',
+    ["Hunter's Roll"] = 'RNG Roll',
+    ["Samurai Roll"] = 'SAM Roll',
+    ["Ninja Roll"] = 'NIN Roll',
+    ["Drachen Roll"] = 'DRG Roll',
+    ["Evoker's Roll"] = 'SMN Roll',
+    ["Magus's Roll"] = 'BLU Roll',
+    ["Corsair's Roll"] = 'COR Roll',
+    ["Puppet Roll"] = 'PUP Roll',
+    ["Dancer's Roll"] = 'DNC Roll',
+    ["Scholar's Roll"] = 'SCH Roll',
+    ["Bolter's Roll"] = 'Bolt. Roll',
+    ["Courser's Roll"] = 'Snap Roll',
+    ["Blitzer's Roll"] = 'AtkSpd Roll',
+    ["Tactician's Roll"] = 'Regain Roll',
+    ["Allies' Roll"] = 'SC DMG Roll',
+    ["Miser's Roll"] = 'SaveTP Roll',
+    ["Companion's Roll"] = 'Pet Regen',
+    ["Avenger's Roll"] = 'Count. Roll',
+    ["Naturalist's Roll"] = 'E.Dur Roll',
+    ["Runeist's Roll"] = 'RUN Roll',
+}
 
 local function buff_allowed(name)
     if not name or name == '' then
@@ -204,6 +239,45 @@ local function load_profile(job)
         only_ja     = {},
     }
     windower.add_to_chat(207, ('[Recast] Using default blacklist profile for %s'):format(job))
+end
+
+local function get_roll_buff_id(roll_name)
+    if not roll_name or roll_name == '' then
+        return nil
+    end
+
+    local cached = roll_buff_id_cache[roll_name]
+    if cached ~= nil then
+        return cached or nil
+    end
+
+    for buff_id, buff in pairs(res.buffs) do
+        if buff and buff.en == roll_name then
+            roll_buff_id_cache[roll_name] = buff_id
+            return buff_id
+        end
+    end
+
+    roll_buff_id_cache[roll_name] = false
+    return nil
+end
+
+local function format_buff_name(buff_name, buff_id)
+    local roll_result = buff_id and manager.roll_results[buff_id]
+    local display_name = roll_name_aliases[buff_name] or buff_name
+    if roll_result and buff_name and buff_name:find(' Roll', 1, true) then
+        return ('%s %d'):format(display_name, roll_result)
+    end
+    return display_name
+end
+
+function manager:set_show_ms(enabled)
+    self.show_ms = enabled ~= false
+    for _, data in pairs(self.bars) do
+        if data.bar and data.bar.set_show_ms then
+            data.bar:set_show_ms(self.show_ms)
+        end
+    end
 end
 
 function manager:reload_profile()
@@ -386,6 +460,7 @@ local function create_bar(name, key, kind, id, recast_id, total)
     local y = manager.base_y + (#manager.order) * manager.spacing
 
     local bar = recast_bar.new_recast_bar(x, y, manager.bar_width, manager.bar_height, manager.mode)
+    bar:set_show_ms(manager.show_ms)
     bar:set_name(name)
     apply_color_theme(bar, kind)
 
@@ -419,6 +494,7 @@ local function create_custom_bar(name, key, total)
     local y = manager.base_y + (#manager.order) * manager.spacing
 
     local bar = recast_bar.new_recast_bar(x, y, manager.bar_width, manager.bar_height, manager.mode)
+    bar:set_show_ms(manager.show_ms)
     bar:set_name(name)
     apply_color_theme(bar, 'custom')
 
@@ -679,6 +755,7 @@ function manager:set_remote_cooldown(owner, abil, kind, rem, total, group_id)
         local y = self.base_y + (#self.order) * self.spacing
 
         local bar = recast_bar.new_recast_bar(x, y, self.bar_width, self.bar_height, self.mode)
+        bar:set_show_ms(self.show_ms)
         bar:set_name(('%s  %s'):format(owner, abil))
 
         -- purple for remote cooldowns
@@ -920,6 +997,7 @@ function manager:update_buff_bars(buff_ids, buff_times)
             local expires = decode_buff_end_time(raw_end)
             local remaining = expires and (expires - now) or 0
             local buff_name = buff and (buff.en or buff.name)
+            local display_name = format_buff_name(buff_name, buff_id)
 
             if buff_name and buff_allowed(buff_name) and remaining > 0 then
                 seen[key] = true
@@ -929,11 +1007,13 @@ function manager:update_buff_bars(buff_ids, buff_times)
                     local x = self.base_x
                     local y = self.base_y + (#self.order) * self.spacing
                     local bar = recast_bar.new_recast_bar(x, y, self.bar_width, self.bar_height, self.mode)
-                    bar:set_name(buff_name)
+                    bar:set_show_ms(self.show_ms)
+                    bar:set_name(display_name)
                     apply_color_theme(bar, 'buff')
 
                     data = {
-                        name = buff_name,
+                        name = display_name,
+                        raw_name = buff_name,
                         kind = 'buff',
                         source = 'buff',
                         buff_id = buff_id,
@@ -947,10 +1027,11 @@ function manager:update_buff_bars(buff_ids, buff_times)
                     self.bars[key] = data
                     table.insert(self.order, key)
                 else
-                    if data.bar and data.name ~= buff_name then
-                        data.bar:set_name(buff_name)
+                    if data.bar and data.name ~= display_name then
+                        data.bar:set_name(display_name)
                     end
-                    data.name = buff_name
+                    data.name = display_name
+                    data.raw_name = buff_name
                     data.buff_id = buff_id
                     data.slot = i
                     data.expires = expires
@@ -972,6 +1053,10 @@ function manager:update_buff_bars(buff_ids, buff_times)
         end
     end
     for _, key in ipairs(stale) do
+        local data = self.bars[key]
+        if data and data.buff_id then
+            self.roll_results[data.buff_id] = nil
+        end
         remove_bar(key)
     end
 
@@ -1003,6 +1088,27 @@ windower.register_event('action', function(act)
     if S{3,6,14,15}:contains(cat) then
         local abil = res.job_abilities[param]
         if abil and abil.recast_id and abil.en then
+            if abil.en:find(' Roll', 1, true) then
+                local roll_result
+                if act.targets and act.targets[1] and act.targets[1].actions and act.targets[1].actions[1] then
+                    roll_result = tonumber(act.targets[1].actions[1].param)
+                end
+                if roll_result and roll_result > 0 then
+                    local roll_buff_id = get_roll_buff_id(abil.en)
+                    if roll_buff_id then
+                        manager.roll_results[roll_buff_id] = roll_result
+
+                        for _, data in pairs(manager.bars) do
+                            if data.source == 'buff' and data.buff_id == roll_buff_id and data.bar then
+                                local display_name = format_buff_name(data.raw_name or abil.en, roll_buff_id)
+                                data.name = display_name
+                                data.raw_name = data.raw_name or abil.en
+                                data.bar:set_name(display_name)
+                            end
+                        end
+                    end
+                end
+            end
             local recast_id = abil.recast_id
             if not should_skip_recast_id(recast_id) then
                 local key       = ('JA:%d'):format(recast_id)
