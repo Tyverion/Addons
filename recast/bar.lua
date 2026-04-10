@@ -54,6 +54,7 @@ local function new_recast_bar(x, y, width, height, mode)
     _last_glow_sec = nil,
 
     enable_glow  = true,
+    show_ms      = true,
     }
 
     local BG_TEXTURE, FG_TEXTURE = tex_paths_for_height(bar.height)
@@ -158,6 +159,10 @@ local function new_recast_bar(x, y, width, height, mode)
         local s  = math.floor((cs % 6000) / 100)
         local hs = cs % 100
 
+        if not bar.show_ms then
+            return ('%d:%02d'):format(m, s)
+        end
+
         return ('%d:%02d.%02d'):format(m, s, hs)
     end
 
@@ -194,6 +199,11 @@ local function new_recast_bar(x, y, width, height, mode)
 
     function bar:set_name(name)
         bar._name = name or ''
+        bar:_update_text_line(bar._last_rem)
+    end
+
+    function bar:set_show_ms(enabled)
+        bar.show_ms = enabled ~= false
         bar:_update_text_line(bar._last_rem)
     end
 
