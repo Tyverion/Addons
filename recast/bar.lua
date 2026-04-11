@@ -55,6 +55,8 @@ local function new_recast_bar(x, y, width, height, mode)
 
     enable_glow  = true,
     show_ms      = true,
+    show_timer_text = true,
+    static_progress = false,
     }
 
     local BG_TEXTURE, FG_TEXTURE = tex_paths_for_height(bar.height)
@@ -181,6 +183,12 @@ local function new_recast_bar(x, y, width, height, mode)
             return
         end
 
+        if not bar.show_timer_text then
+            local line = ('%-' .. NAME_COL_CHARS .. 's'):format(name)
+            bar.text:text(line)
+            return
+        end
+
         local t = bar:_format_time(rem)
         local fmt = '%-' .. NAME_COL_CHARS .. 's %s'
         local line = fmt:format(name, t)
@@ -205,6 +213,15 @@ local function new_recast_bar(x, y, width, height, mode)
     function bar:set_show_ms(enabled)
         bar.show_ms = enabled ~= false
         bar:_update_text_line(bar._last_rem)
+    end
+
+    function bar:set_show_timer_text(enabled)
+        bar.show_timer_text = enabled ~= false
+        bar:_update_text_line(bar._last_rem)
+    end
+
+    function bar:set_static_progress(enabled)
+        bar.static_progress = enabled == true
     end
 
     function bar:set_position(x, y)
@@ -241,7 +258,12 @@ local function new_recast_bar(x, y, width, height, mode)
         local rem = math.max(0, remaining)
         bar._last_rem = rem
 
-        local pct_raw = rem / total
+        local pct_raw
+        if bar.static_progress then
+            pct_raw = 1
+        else
+            pct_raw = rem / total
+        end
         -- clamp so we never overflow the bar width
         if pct_raw < 0 then
             pct_raw = 0
