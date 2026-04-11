@@ -41,6 +41,8 @@ local BUFF_PACKET_ORDER   = 0x09
 local BUFF_BAR_PREFIX     = 'BUFF:'
 local BUFF_TIME_BASE      = 1009810800
 local BUFF_TIME_ROLLOVER  = 0x100000000 / 60
+local GEO_BUFF_MIN_ID     = 539
+local GEO_BUFF_MAX_ID     = 567
 
 local CHARGE_RECASTS = S{
     231, -- Stratagems
@@ -171,36 +173,67 @@ local profile = {
 local buff_filters = {}
 local roll_buff_id_cache = {}
 local roll_name_aliases = {
-    ["Warrior's Roll"] = 'WAR Roll',
-    ["Monk's Roll"] = 'MNK Roll',
-    ["Healer's Roll"] = 'WHM Roll',
-    ["Wizard's Roll"] = 'BLM Roll',
-    ["Caster's Roll"] = 'RDM Roll',
-    ["Rogue's Roll"] = 'THF Roll',
-    ["Gallant's Roll"] = 'PLD Roll',
-    ["Chaos Roll"] = 'DRK Roll',
-    ["Beast Roll"] = 'BST Roll',
-    ["Choral Roll"] = 'BRD Roll',
-    ["Hunter's Roll"] = 'RNG Roll',
-    ["Samurai Roll"] = 'SAM Roll',
-    ["Ninja Roll"] = 'NIN Roll',
-    ["Drachen Roll"] = 'DRG Roll',
-    ["Evoker's Roll"] = 'SMN Roll',
-    ["Magus's Roll"] = 'BLU Roll',
-    ["Corsair's Roll"] = 'COR Roll',
-    ["Puppet Roll"] = 'PUP Roll',
-    ["Dancer's Roll"] = 'DNC Roll',
-    ["Scholar's Roll"] = 'SCH Roll',
-    ["Bolter's Roll"] = 'Bolt. Roll',
-    ["Courser's Roll"] = 'Snap Roll',
-    ["Blitzer's Roll"] = 'AtkSpd Roll',
-    ["Tactician's Roll"] = 'Regain Roll',
-    ["Allies' Roll"] = 'SC DMG Roll',
-    ["Miser's Roll"] = 'SaveTP Roll',
-    ["Companion's Roll"] = 'Pet Regen',
-    ["Avenger's Roll"] = 'Count. Roll',
-    ["Naturalist's Roll"] = 'E.Dur Roll',
-    ["Runeist's Roll"] = 'RUN Roll',
+    ["Warrior's Roll"]      = 'WAR Roll',
+    ["Monk's Roll"]         = 'MNK Roll',
+    ["Healer's Roll"]       = 'WHM Roll',
+    ["Wizard's Roll"]       = 'BLM Roll',
+    ["Caster's Roll"]       = 'RDM Roll',
+    ["Rogue's Roll"]        = 'THF Roll',
+    ["Gallant's Roll"]      = 'PLD Roll',
+    ["Chaos Roll"]          = 'DRK Roll',
+    ["Beast Roll"]          = 'BST Roll',
+    ["Choral Roll"]         = 'BRD Roll',
+    ["Hunter's Roll"]       = 'RNG Roll',
+    ["Samurai Roll"]        = 'SAM Roll',
+    ["Ninja Roll"]          = 'NIN Roll',
+    ["Drachen Roll"]        = 'DRG Roll',
+    ["Evoker's Roll"]       = 'SMN Roll',
+    ["Magus's Roll"]        = 'BLU Roll',
+    ["Corsair's Roll"]      = 'COR Roll',
+    ["Puppet Roll"]         = 'PUP Roll',
+    ["Dancer's Roll"]       = 'DNC Roll',
+    ["Scholar's Roll"]      = 'SCH Roll',
+    ["Bolter's Roll"]       = 'Bolt. Roll',
+    ["Courser's Roll"]      = 'Snap Roll',
+    ["Blitzer's Roll"]      = 'AtkSpd Roll',
+    ["Tactician's Roll"]    = 'Regain Roll',
+    ["Allies' Roll"]        = 'SC DMG Roll',
+    ["Miser's Roll"]        = 'SaveTP Roll',
+    ["Companion's Roll"]    = 'Pet Regen',
+    ["Avenger's Roll"]      = 'Count. Roll',
+    ["Naturalist's Roll"]   = 'E.Dur Roll',
+    ["Runeist's Roll"]      = 'RUN Roll',
+}
+local geo_name_aliases = {
+    ['Regen']               = 'GEO-Regen',
+    ['poison']              = 'GEO-Poi.',
+    ['Refresh']             = 'GEO-Refresh',
+    ['STR Boost']           = 'GEO-STR',
+    ['DEX Boost']           = 'GEO-DEX',
+    ['VIT Boost']           = 'GEO-VIT',
+    ['AGI Boost']           = 'GEO-AGI',
+    ['INT Boost']           = 'GEO-INT',
+    ['MND Boost']           = 'GEO-MND',
+    ['CHR Boost']           = 'GEO-CHR',
+    ['Attack Boost']        = 'GEO-Atk',
+    ['Defense Boost']       = 'GEO-Def',
+    ['Magic Atk. Boost']    = 'GEO-MAB',
+    ['Magic Def. Boost']    = 'GEO-MDB',
+    ['Accuracy Boost']      = 'GEO-Acc',
+    ['Evasion Boost']       = 'GEO-Eva',
+    ['Magic Acc. Boost']    = 'GEO-MAcc',
+    ['Magic Evasion Boost'] = 'GEO-MEva',
+    ['Attack Down']         = 'GEO-Atk Down',
+    ['Defense Down']        = 'GEO-Def Down',
+    ['Magic Atk. Down']     = 'GEO-MAB Down',
+    ['Magic Def. Down']     = 'GEO-MDB Down',
+    ['Accuracy Down']       = 'GEO-Acc Down',
+    ['Evasion Down']        = 'GEO-Eva Down',
+    ['Magic Acc. Down']     = 'GEO-MAcc Down',
+    ['Magic Evasion Down']  = 'GEO-MEva Down',
+    ['slow']                = 'GEO-Slow',
+    ['paralysis']           = 'GEO-Para.',
+    ['weight']              = 'GEO-Grav.',
 }
 
 local function buff_allowed(name)
@@ -209,6 +242,10 @@ local function buff_allowed(name)
     end
 
     return buff_filters[name:lower()] ~= true
+end
+
+local function is_geo_buff_id(buff_id)
+    return buff_id and buff_id >= GEO_BUFF_MIN_ID and buff_id <= GEO_BUFF_MAX_ID
 end
 
 local function load_profile(job)
@@ -264,7 +301,12 @@ end
 
 local function format_buff_name(buff_name, buff_id)
     local roll_result = buff_id and manager.roll_results[buff_id]
-    local display_name = roll_name_aliases[buff_name] or buff_name
+    local display_name = buff_name
+    if is_geo_buff_id(buff_id) then
+        display_name = geo_name_aliases[buff_name] or buff_name
+    else
+        display_name = roll_name_aliases[buff_name] or buff_name
+    end
     if roll_result and buff_name and buff_name:find(' Roll', 1, true) then
         return ('%s %d'):format(display_name, roll_result)
     end
@@ -934,7 +976,11 @@ function manager:update()
             elseif data.kind == 'custom' then
                 rem = (data.expires or 0) - now
             elseif data.kind == 'buff' then
-                rem = (data.expires_clock or 0) - now
+                if is_geo_buff_id(data.buff_id) then
+                    rem = math.max(1, data.total or 1)
+                else
+                    rem = (data.expires_clock or 0) - now
+                end
             end
 
             if rem <= 0 then
@@ -998,6 +1044,8 @@ function manager:update_buff_bars(buff_ids, buff_times)
             local remaining = expires and (expires - now) or 0
             local buff_name = buff and (buff.en or buff.name)
             local display_name = format_buff_name(buff_name, buff_id)
+            local is_geo_buff = is_geo_buff_id(buff_id)
+            local show_timer_text = not is_geo_buff
 
             if buff_name and buff_allowed(buff_name) and remaining > 0 then
                 seen[key] = true
@@ -1008,6 +1056,10 @@ function manager:update_buff_bars(buff_ids, buff_times)
                     local y = self.base_y + (#self.order) * self.spacing
                     local bar = recast_bar.new_recast_bar(x, y, self.bar_width, self.bar_height, self.mode)
                     bar:set_show_ms(self.show_ms)
+                    bar:set_show_timer_text(show_timer_text)
+                    if bar.set_static_progress then
+                        bar:set_static_progress(is_geo_buff)
+                    end
                     bar:set_name(display_name)
                     apply_color_theme(bar, 'buff')
 
@@ -1029,6 +1081,12 @@ function manager:update_buff_bars(buff_ids, buff_times)
                 else
                     if data.bar and data.name ~= display_name then
                         data.bar:set_name(display_name)
+                    end
+                    if data.bar and data.bar.set_show_timer_text then
+                        data.bar:set_show_timer_text(show_timer_text)
+                    end
+                    if data.bar and data.bar.set_static_progress then
+                        data.bar:set_static_progress(is_geo_buff)
                     end
                     data.name = display_name
                     data.raw_name = buff_name
